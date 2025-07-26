@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-gateway
+  namespace: erp-system
+  labels:
+    app: graphql-gateway
+    component: api-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: graphql-gateway
+  template:
+    metadata:
+      labels:
+        app: graphql-gateway
+        component: api-gateway
+    spec:
+      containers:
+      - name: graphql-gateway
+        image: node:18-alpine
+        workingDir: /app
+        command: ["sh", "-c", "npm install && npm start"]
+        ports:
+        - containerPort: 4000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: REDIS_URL
+          value: "redis://:redispassword@redis:6379"
+        - name: POSTGRES_URL
+          value: "postgresql://postgres:postgres@postgres:5432/erp_system"
+        - name: GRPC_AUTH_SERVICE
+          value: "auth-service:50051"
+        - name: GRPC_CRM_SERVICE
+          value: "crm-service:50052"
+        - name: GRPC_HRM_SERVICE
+          value: "hrm-service:50053"
+        - name: GRPC_FINANCE_SERVICE
+          value: "finance-service:50054"
+        - name: PORT
+          value: "4000"
+        - name: ENABLE_PLAYGROUND
+          value: "false"
+        - name: ENABLE_INTROSPECTION
+          value: "false"
+        - name: QUERY_CACHE_TTL
+          value: "300"
+        - name: DATALOADER_CACHE_TTL
+          value: "60"
+        volumeMounts:
+        - name: app-code
+          mountPath: /app
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: app-code
+        configMap:
+          name: graphql-gateway-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-gateway
+  namespace: erp-system
+  labels:
+    app: graphql-gateway
+    component: api-gateway
+spec:
+  selector:
+    app: graphql-gateway
+  ports:
+  - name: http
+    port: 4000
+    targetPort: 4000
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: graphql-gateway-code
+  namespace: erp-system
+data:
+  package.json: |
+    {
+      "name": "erp-graphql-gateway",
+      "version": "1.0.0",
+      "description": "High-performance GraphQL Gateway with gRPC backend integration",
+      "main": "src/server.js",
+      "scripts": {
+        "start": "node src/server.js",
+        "dev": "nodemon src/server.js"
+      },
+      "dependencies": {
+        "apollo-server-express": "^3.12.0",
+        "apollo-server-core": "^3.12.0",
+        "express": "^4.18.2",
+        "graphql": "^16.6.0",
+        "graphql-redis-subscriptions": "^2.6.0",
+        "@grpc/grpc-js": "^1.8.14",
+        "@grpc/proto-loader": "^0.7.6",
+        "dataloader": "^2.2.2",
+        "redis": "^4.6.5",
+        "ioredis": "^5.3.2",
+        "compression": "^1.7.4",
+        "helmet": "^6.1.5",
+        "cors": "^2.8.5",
+        "graphql-query-complexity": "^0.12.0",
+        "graphql-depth-limit": "^1.1.0",
+        "graphql-rate-limit": "^2.0.1",
+        "consul": "^0.40.0",
+        "pino": "^8.11.0"
+      }
+    }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graphql-gateway-ingress
+  namespace: erp-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+spec:
+  rules:
+  - host: api.erp-suite.local
+    http:
+      paths:
+      - path: /graphql
+        pathType: Prefix
+        backend:
+          service:
+            name: graphql-gateway
+            port:
+              number: 4000
+  - host: playground.erp-suite.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: graphql-gateway
+            port:
+              number: 4000

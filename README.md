@@ -278,21 +278,30 @@ The infrastructure includes a comprehensive shared configuration system located 
 
 ## 🚀 Quick Start
 
-### Docker Compose (Development)
+### Environment Setup
 ```bash
-# Start all services
-make dev-up
+# 1. Copy and customize environment configuration
+make env-setup
+# Edit .env file to customize ports, passwords, etc.
 
-# Start specific service group
-make db-up        # Databases only
-make monitoring-up # Monitoring stack only
-make tools-up     # Development tools only
+# 2. Start infrastructure with API layer (recommended)
+make dev-infrastructure
 
-# Stop all services
-make dev-down
+# 3. Or start full application stack (requires app repositories)
+make dev-full-stack
+```
 
-# View logs
-make logs
+### Docker Compose Profiles
+```bash
+# Start specific service groups using profiles
+make infrastructure-only  # Core databases and message brokers
+make api-up              # GraphQL Gateway + gRPC Registry + WebSocket
+make monitoring-up       # Prometheus + Grafana + Jaeger
+make tools-up           # Development tools (pgAdmin, etc.)
+make minimal            # Just databases + Kafka
+
+# Custom profile combinations
+docker compose --profile infrastructure --profile monitoring up -d
 ```
 
 ### Kubernetes (Production-like)
@@ -309,31 +318,82 @@ make k8s-clean
 
 ## 📋 Service Endpoints
 
-| Service | Port | URL | Credentials |
-|---------|------|-----|-------------|
-| PostgreSQL | 5432 | localhost:5432 | postgres/postgres |
-| MongoDB | 27017 | localhost:27017 | root/password |
-| Redis | 6379 | localhost:6379 | - |
-| Qdrant | 6333 | http://localhost:6333 | - |
-| Kafka | 9092 | localhost:9092 | - |
-| Elasticsearch | 9200 | http://localhost:9200 | elastic/password |
-| Prometheus | 9090 | http://localhost:9090 | - |
-| Grafana | 3000 | http://localhost:3000 | admin/admin |
-| Jaeger | 16686 | http://localhost:16686 | - |
-| pgAdmin | 8081 | http://localhost:8081 | admin@erp.com/admin |
-| Mongo Express | 8082 | http://localhost:8082 | admin/pass |
-| Redis Commander | 8083 | http://localhost:8083 | - |
-| Kafka UI | 8084 | http://localhost:8084 | - |
-| Kibana | 5601 | http://localhost:5601 | elastic/password |
+| Service | Default Port | URL | Credentials | Environment Variable |
+|---------|-------------|-----|-------------|---------------------|
+| **API Layer** | | | | |
+| GraphQL Gateway | 4000 | http://localhost:4000/graphql | - | `GRAPHQL_GATEWAY_PORT` |
+| GraphQL Playground | 4000 | http://localhost:4000/playground | - | `GRAPHQL_GATEWAY_PORT` |
+| gRPC Registry (Consul) | 8500 | http://localhost:8500 | - | `CONSUL_PORT` |
+| WebSocket Server | 3001 | http://localhost:3001 | - | `WEBSOCKET_PORT` |
+| **Infrastructure** | | | | |
+| PostgreSQL | 5432 | localhost:5432 | postgres/postgres* | `POSTGRES_PORT` |
+| MongoDB | 27017 | localhost:27017 | root/password* | `MONGODB_PORT` |
+| Redis | 6379 | localhost:6379 | redispassword* | `REDIS_PORT` |
+| Qdrant | 6333 | http://localhost:6333 | - | `QDRANT_HTTP_PORT` |
+| Kafka | 9092 | localhost:9092 | - | `KAFKA_PORT` |
+| Elasticsearch | 9200 | http://localhost:9200 | elastic/password* | `ELASTICSEARCH_PORT` |
+| **Monitoring** | | | | |
+| Prometheus | 9090 | http://localhost:9090 | - | `PROMETHEUS_PORT` |
+| Grafana | 3000 | http://localhost:3000 | admin/admin* | `GRAFANA_PORT` |
+| Jaeger | 16686 | http://localhost:16686 | - | `JAEGER_UI_PORT` |
+| **Development Tools** | | | | |
+| pgAdmin | 8081 | http://localhost:8081 | admin@erp.com/admin* | `PGADMIN_PORT` |
+| Mongo Express | 8082 | http://localhost:8082 | admin/pass* | `MONGO_EXPRESS_PORT` |
+| Redis Commander | 8083 | http://localhost:8083 | - | `REDIS_COMMANDER_PORT` |
+| Kafka UI | 8084 | http://localhost:8084 | - | `KAFKA_UI_PORT` |
+| Kibana | 5601 | http://localhost:5601 | elastic/password* | `KIBANA_PORT` |
+| **gRPC Services** | | | | |
+| Auth Service | 50051 | grpc://auth-service:50051 | - | `GRPC_AUTH_PORT` |
+| CRM Service | 50052 | grpc://crm-service:50052 | - | `GRPC_CRM_PORT` |
+| HRM Service | 50053 | grpc://hrm-service:50053 | - | `GRPC_HRM_PORT` |
+| Finance Service | 50054 | grpc://finance-service:50054 | - | `GRPC_FINANCE_PORT` |
+| Inventory Service | 50055 | grpc://inventory-service:50055 | - | `GRPC_INVENTORY_PORT` |
+| Project Service | 50056 | grpc://project-service:50056 | - | `GRPC_PROJECT_PORT` |
+
+*Configurable via `.env` file
 
 ## 🔧 Configuration
 
-All services are pre-configured for development with:
+### Environment Variables
+All services are configurable via environment variables in the `.env` file:
+
+```bash
+# Copy example configuration
+make env-setup
+
+# Edit configuration
+vim .env
+
+# Key configuration options:
+POSTGRES_PASSWORD=your_secure_password
+REDIS_PASSWORD=your_redis_password
+GRAPHQL_GATEWAY_PORT=4000
+CONSUL_PORT=8500
+COMPOSE_PROFILES=infrastructure,api-layer,monitoring
+```
+
+### Docker Compose Profiles
+Control which services start using profiles:
+
+```bash
+# Infrastructure only
+COMPOSE_PROFILES=infrastructure docker compose up -d
+
+# Infrastructure + API layer
+COMPOSE_PROFILES=infrastructure,api-layer docker compose up -d
+
+# Full stack
+COMPOSE_PROFILES=full-stack docker compose up -d
+```
+
+### Service Features
+All services include:
 - Persistent volumes for data
-- Health checks
-- Resource limits
-- Network isolation
-- Security configurations
+- Health checks with automatic restarts
+- Resource limits and optimization
+- Network isolation via Docker networks
+- Environment-based configuration
+- Service discovery via container names
 
 ## 🔄 Incremental Development Support
 

@@ -1,0 +1,329 @@
+syntax = "proto3";
+
+package hrm;
+
+service HRMService {
+  // Employee management
+  rpc GetEmployee(GetEmployeeRequest) returns (Employee);
+  rpc GetEmployeesByIds(GetEmployeesByIdsRequest) returns (GetEmployeesByIdsResponse);
+  rpc GetEmployees(GetEmployeesRequest) returns (GetEmployeesResponse);
+  rpc CreateEmployee(CreateEmployeeRequest) returns (Employee);
+  rpc UpdateEmployee(UpdateEmployeeRequest) returns (Employee);
+  rpc DeleteEmployee(DeleteEmployeeRequest) returns (DeleteEmployeeResponse);
+  
+  // Department management
+  rpc GetDepartment(GetDepartmentRequest) returns (Department);
+  rpc GetDepartmentsByIds(GetDepartmentsByIdsRequest) returns (GetDepartmentsByIdsResponse);
+  rpc GetDepartments(GetDepartmentsRequest) returns (GetDepartmentsResponse);
+  rpc CreateDepartment(CreateDepartmentRequest) returns (Department);
+  rpc UpdateDepartment(UpdateDepartmentRequest) returns (Department);
+  
+  // Leave management
+  rpc GetLeave(GetLeaveRequest) returns (Leave);
+  rpc GetLeavesByIds(GetLeavesByIdsRequest) returns (GetLeavesByIdsResponse);
+  rpc GetLeaves(GetLeavesRequest) returns (GetLeavesResponse);
+  rpc SubmitLeave(SubmitLeaveRequest) returns (Leave);
+  rpc ApproveLeave(ApproveLeaveRequest) returns (Leave);
+  rpc GetLeaveBalance(GetLeaveBalanceRequest) returns (GetLeaveBalanceResponse);
+  
+  // Timesheet management
+  rpc GetTimesheetsByIds(GetTimesheetsByIdsRequest) returns (GetTimesheetsByIdsResponse);
+  rpc GetTimesheets(GetTimesheetsRequest) returns (GetTimesheetsResponse);
+  rpc CreateTimesheet(CreateTimesheetRequest) returns (Timesheet);
+  rpc UpdateTimesheet(UpdateTimesheetRequest) returns (Timesheet);
+  
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Enums
+enum EmployeeStatus {
+  EMPLOYEE_STATUS_ACTIVE = 0;
+  EMPLOYEE_STATUS_INACTIVE = 1;
+  EMPLOYEE_STATUS_TERMINATED = 2;
+  EMPLOYEE_STATUS_ON_LEAVE = 3;
+}
+
+enum LeaveType {
+  LEAVE_TYPE_ANNUAL = 0;
+  LEAVE_TYPE_SICK = 1;
+  LEAVE_TYPE_MATERNITY = 2;
+  LEAVE_TYPE_PATERNITY = 3;
+  LEAVE_TYPE_EMERGENCY = 4;
+}
+
+enum LeaveStatus {
+  LEAVE_STATUS_PENDING = 0;
+  LEAVE_STATUS_APPROVED = 1;
+  LEAVE_STATUS_REJECTED = 2;
+  LEAVE_STATUS_CANCELLED = 3;
+}
+
+// Messages
+message Employee {
+  string id = 1;
+  string employee_id = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string email = 5;
+  string phone = 6;
+  string position = 7;
+  string department_id = 8;
+  string manager_id = 9;
+  int64 hire_date = 10;
+  double salary = 11;
+  EmployeeStatus status = 12;
+  int64 created_at = 13;
+  int64 updated_at = 14;
+  string organization_id = 15;
+}
+
+message Department {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string manager_id = 4;
+  double budget = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+  string organization_id = 8;
+}
+
+message Leave {
+  string id = 1;
+  string employee_id = 2;
+  LeaveType type = 3;
+  int64 start_date = 4;
+  int64 end_date = 5;
+  int32 days = 6;
+  LeaveStatus status = 7;
+  string reason = 8;
+  string approved_by = 9;
+  int64 approved_at = 10;
+  int64 created_at = 11;
+  string organization_id = 12;
+}
+
+message Timesheet {
+  string id = 1;
+  string employee_id = 2;
+  int64 date = 3;
+  double hours_worked = 4;
+  string project_id = 5;
+  string description = 6;
+  bool is_approved = 7;
+  string approved_by = 8;
+  int64 created_at = 9;
+  string organization_id = 10;
+}
+
+message LeaveBalance {
+  string employee_id = 1;
+  LeaveType leave_type = 2;
+  int32 total_days = 3;
+  int32 used_days = 4;
+  int32 remaining_days = 5;
+  int32 year = 6;
+}
+
+// Request/Response messages
+message GetEmployeeRequest {
+  string id = 1;
+}
+
+message GetEmployeesByIdsRequest {
+  repeated string ids = 1;
+}
+
+message GetEmployeesByIdsResponse {
+  repeated Employee items = 1;
+}
+
+message GetEmployeesRequest {
+  string search = 1;
+  string department_id = 2;
+  EmployeeStatus status = 3;
+  string manager_id = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+  string sort_field = 7;
+  string sort_direction = 8;
+}
+
+message GetEmployeesResponse {
+  repeated Employee employees = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+message CreateEmployeeRequest {
+  string employee_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  string phone = 5;
+  string position = 6;
+  string department_id = 7;
+  string manager_id = 8;
+  int64 hire_date = 9;
+  double salary = 10;
+}
+
+message UpdateEmployeeRequest {
+  string id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  string phone = 5;
+  string position = 6;
+  string department_id = 7;
+  string manager_id = 8;
+  double salary = 9;
+  EmployeeStatus status = 10;
+}
+
+message DeleteEmployeeRequest {
+  string id = 1;
+}
+
+message DeleteEmployeeResponse {
+  bool success = 1;
+}
+
+message GetDepartmentRequest {
+  string id = 1;
+}
+
+message GetDepartmentsByIdsRequest {
+  repeated string ids = 1;
+}
+
+message GetDepartmentsByIdsResponse {
+  repeated Department items = 1;
+}
+
+message GetDepartmentsRequest {
+  string search = 1;
+  string manager_id = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message GetDepartmentsResponse {
+  repeated Department departments = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+message CreateDepartmentRequest {
+  string name = 1;
+  string description = 2;
+  string manager_id = 3;
+  double budget = 4;
+}
+
+message UpdateDepartmentRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string manager_id = 4;
+  double budget = 5;
+}
+
+message GetLeaveRequest {
+  string id = 1;
+}
+
+message GetLeavesByIdsRequest {
+  repeated string ids = 1;
+}
+
+message GetLeavesByIdsResponse {
+  repeated Leave items = 1;
+}
+
+message GetLeavesRequest {
+  string employee_id = 1;
+  LeaveType type = 2;
+  LeaveStatus status = 3;
+  int64 date_from = 4;
+  int64 date_to = 5;
+  int32 limit = 6;
+  int32 offset = 7;
+}
+
+message GetLeavesResponse {
+  repeated Leave leaves = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+message SubmitLeaveRequest {
+  string employee_id = 1;
+  LeaveType type = 2;
+  int64 start_date = 3;
+  int64 end_date = 4;
+  string reason = 5;
+}
+
+message ApproveLeaveRequest {
+  string id = 1;
+  bool approved = 2;
+  string approved_by = 3;
+}
+
+message GetLeaveBalanceRequest {
+  string employee_id = 1;
+  int32 year = 2;
+}
+
+message GetLeaveBalanceResponse {
+  repeated LeaveBalance balances = 1;
+}
+
+message GetTimesheetsByIdsRequest {
+  repeated string ids = 1;
+}
+
+message GetTimesheetsByIdsResponse {
+  repeated Timesheet items = 1;
+}
+
+message GetTimesheetsRequest {
+  string employee_id = 1;
+  string project_id = 2;
+  int64 date_from = 3;
+  int64 date_to = 4;
+  bool is_approved = 5;
+  int32 limit = 6;
+  int32 offset = 7;
+}
+
+message GetTimesheetsResponse {
+  repeated Timesheet timesheets = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+message CreateTimesheetRequest {
+  string employee_id = 1;
+  int64 date = 2;
+  double hours_worked = 3;
+  string project_id = 4;
+  string description = 5;
+}
+
+message UpdateTimesheetRequest {
+  string id = 1;
+  double hours_worked = 2;
+  string description = 3;
+  bool is_approved = 4;
+  string approved_by = 5;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  int64 timestamp = 2;
+}
