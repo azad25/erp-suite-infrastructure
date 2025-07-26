@@ -1,0 +1,349 @@
+# Staging Environment Configuration
+# This file contains all service configurations for the staging environment
+
+environment:
+  name: staging
+  debug: false
+  log_level: info
+  hot_reload: false
+
+# ============================================================================
+# DATABASE CONFIGURATIONS
+# ============================================================================
+
+databases:
+  postgresql:
+    host: ${POSTGRES_HOST:postgres-staging.internal}
+    port: ${POSTGRES_PORT:5432}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD}
+    ssl_mode: require
+    max_connections: 150
+    connection_timeout: 30
+    databases:
+      auth: ${POSTGRES_DB_AUTH:erp_auth_staging}
+      crm: ${POSTGRES_DB_CRM:erp_crm_staging}
+      hrm: ${POSTGRES_DB_HRM:erp_hrm_staging}
+      finance: ${POSTGRES_DB_FINANCE:erp_finance_staging}
+      inventory: ${POSTGRES_DB_INVENTORY:erp_inventory_staging}
+      projects: ${POSTGRES_DB_PROJECTS:erp_projects_staging}
+      analytics: ${POSTGRES_DB_ANALYTICS:erp_analytics_staging}
+    
+  mongodb:
+    host: ${MONGODB_HOST:mongodb-staging.internal}
+    port: ${MONGODB_PORT:27017}
+    username: ${MONGODB_USER:root}
+    password: ${MONGODB_PASSWORD}
+    auth_source: admin
+    max_pool_size: 150
+    ssl: true
+    databases:
+      analytics: ${MONGODB_DB_ANALYTICS:erp_analytics_staging}
+      logs: ${MONGODB_DB_LOGS:erp_logs_staging}
+      ai_conversations: ${MONGODB_DB_AI:erp_ai_conversations_staging}
+      audit_trail: ${MONGODB_DB_AUDIT:erp_audit_trail_staging}
+    
+  redis:
+    host: ${REDIS_HOST:redis-staging.internal}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD}
+    max_connections: 150
+    ssl: true
+    databases:
+      cache: 0
+      sessions: 1
+      queues: 2
+      websocket: 3
+      rate_limiting: 4
+    
+  qdrant:
+    host: ${QDRANT_HOST:qdrant-staging.internal}
+    http_port: ${QDRANT_HTTP_PORT:6333}
+    grpc_port: ${QDRANT_GRPC_PORT:6334}
+    api_key: ${QDRANT_API_KEY}
+    ssl: true
+    collections:
+      documents: erp_documents_staging
+      products: erp_products_staging
+      conversations: erp_conversations_staging
+      knowledge_base: erp_knowledge_staging
+      embeddings: erp_embeddings_staging
+
+# ============================================================================
+# MESSAGE BROKER CONFIGURATIONS
+# ============================================================================
+
+messaging:
+  kafka:
+    brokers: ${KAFKA_BROKERS:kafka-staging.internal:9092}
+    security_protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+    sasl_mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+    sasl_username: ${KAFKA_USERNAME}
+    sasl_password: ${KAFKA_PASSWORD}
+    topics:
+      auth_events: ${KAFKA_TOPIC_AUTH:auth-events-staging}
+      user_events: ${KAFKA_TOPIC_USER:user-events-staging}
+      business_events: ${KAFKA_TOPIC_BUSINESS:business-events-staging}
+      system_events: ${KAFKA_TOPIC_SYSTEM:system-events-staging}
+      ai_events: ${KAFKA_TOPIC_AI:ai-events-staging}
+      notification_events: ${KAFKA_TOPIC_NOTIFICATIONS:notification-events-staging}
+    consumer_groups:
+      auth_service: ${KAFKA_GROUP_AUTH:auth-service-group-staging}
+      crm_service: ${KAFKA_GROUP_CRM:crm-service-group-staging}
+      hrm_service: ${KAFKA_GROUP_HRM:hrm-service-group-staging}
+      finance_service: ${KAFKA_GROUP_FINANCE:finance-service-group-staging}
+      inventory_service: ${KAFKA_GROUP_INVENTORY:inventory-service-group-staging}
+      projects_service: ${KAFKA_GROUP_PROJECTS:projects-service-group-staging}
+      notification_service: ${KAFKA_GROUP_NOTIFICATIONS:notification-service-group-staging}
+      analytics_service: ${KAFKA_GROUP_ANALYTICS:analytics-service-group-staging}
+      audit_service: ${KAFKA_GROUP_AUDIT:audit-service-group-staging}
+      ai_service: ${KAFKA_GROUP_AI:ai-service-group-staging}
+    producer_config:
+      acks: all
+      retries: 5
+      batch_size: 32768
+      linger_ms: 50
+      compression_type: snappy
+    consumer_config:
+      auto_offset_reset: earliest
+      enable_auto_commit: false
+      session_timeout_ms: 30000
+      max_poll_records: 500
+
+# ============================================================================
+# SEARCH & ANALYTICS
+# ============================================================================
+
+search:
+  elasticsearch:
+    host: ${ELASTICSEARCH_HOST:elasticsearch-staging.internal}
+    port: ${ELASTICSEARCH_PORT:9200}
+    username: ${ELASTICSEARCH_USERNAME:elastic}
+    password: ${ELASTICSEARCH_PASSWORD}
+    use_ssl: true
+    verify_certs: true
+    ca_cert: ${ELASTICSEARCH_CA_CERT}
+    indices:
+      contacts: ${ES_INDEX_CONTACTS:erp_contacts_staging}
+      products: ${ES_INDEX_PRODUCTS:erp_products_staging}
+      documents: ${ES_INDEX_DOCUMENTS:erp_documents_staging}
+      employees: ${ES_INDEX_EMPLOYEES:erp_employees_staging}
+      transactions: ${ES_INDEX_TRANSACTIONS:erp_transactions_staging}
+      projects: ${ES_INDEX_PROJECTS:erp_projects_staging}
+      knowledge_base: ${ES_INDEX_KNOWLEDGE:erp_knowledge_staging}
+    settings:
+      number_of_shards: 2
+      number_of_replicas: 1
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+
+monitoring:
+  prometheus:
+    host: ${PROMETHEUS_HOST:prometheus-staging.internal}
+    port: ${PROMETHEUS_PORT:9090}
+    scrape_interval: 30s
+    evaluation_interval: 30s
+    
+  grafana:
+    host: ${GRAFANA_HOST:grafana-staging.internal}
+    port: ${GRAFANA_PORT:3000}
+    username: ${GRAFANA_USERNAME:admin}
+    password: ${GRAFANA_PASSWORD}
+    
+  jaeger:
+    host: ${JAEGER_HOST:jaeger-staging.internal}
+    port: ${JAEGER_PORT:16686}
+    grpc_port: ${JAEGER_GRPC_PORT:14250}
+    http_port: ${JAEGER_HTTP_PORT:14268}
+    agent_host: ${JAEGER_AGENT_HOST:jaeger-agent-staging.internal}
+    agent_port: ${JAEGER_AGENT_PORT:6831}
+    
+  logging:
+    level: ${LOG_LEVEL:info}
+    format: json
+    output: ${LOG_OUTPUT:stdout}
+
+# ============================================================================
+# REAL-TIME COMMUNICATION
+# ============================================================================
+
+realtime:
+  websocket:
+    host: ${WEBSOCKET_HOST:websocket-staging.internal}
+    port: ${WEBSOCKET_PORT:3001}
+    path: /socket.io/
+    cors_origins: ${WEBSOCKET_CORS_ORIGINS:https://staging.erp-suite.com}
+    ssl: true
+    transports:
+      - websocket
+
+# ============================================================================
+# SECURITY CONFIGURATIONS
+# ============================================================================
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    access_token_expiry: ${JWT_ACCESS_EXPIRY:1800}  # 30 minutes
+    refresh_token_expiry: ${JWT_REFRESH_EXPIRY:43200}  # 12 hours
+    algorithm: ${JWT_ALGORITHM:HS256}
+    
+  cors:
+    allowed_origins: ${CORS_ALLOWED_ORIGINS:https://staging.erp-suite.com}
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+    allow_credentials: true
+    
+  rate_limiting:
+    enabled: true
+    requests_per_minute: ${RATE_LIMIT_RPM:200}
+    burst_size: ${RATE_LIMIT_BURST:50}
+    
+  encryption:
+    key: ${ENCRYPTION_KEY}
+    algorithm: AES-256-GCM
+
+# ============================================================================
+# SERVICE DISCOVERY
+# ============================================================================
+
+services:
+  auth_service:
+    host: ${AUTH_SERVICE_HOST:auth-service-staging.internal}
+    http_port: ${AUTH_SERVICE_HTTP_PORT:8080}
+    grpc_port: ${AUTH_SERVICE_GRPC_PORT:9090}
+    health_endpoint: /health
+    
+  crm_service:
+    host: ${CRM_SERVICE_HOST:crm-service-staging.internal}
+    http_port: ${CRM_SERVICE_HTTP_PORT:8081}
+    grpc_port: ${CRM_SERVICE_GRPC_PORT:9091}
+    health_endpoint: /health
+    
+  hrm_service:
+    host: ${HRM_SERVICE_HOST:hrm-service-staging.internal}
+    http_port: ${HRM_SERVICE_HTTP_PORT:8082}
+    grpc_port: ${HRM_SERVICE_GRPC_PORT:9092}
+    health_endpoint: /health
+    
+  finance_service:
+    host: ${FINANCE_SERVICE_HOST:finance-service-staging.internal}
+    http_port: ${FINANCE_SERVICE_HTTP_PORT:8083}
+    grpc_port: ${FINANCE_SERVICE_GRPC_PORT:9093}
+    health_endpoint: /health
+    
+  inventory_service:
+    host: ${INVENTORY_SERVICE_HOST:inventory-service-staging.internal}
+    http_port: ${INVENTORY_SERVICE_HTTP_PORT:8084}
+    grpc_port: ${INVENTORY_SERVICE_GRPC_PORT:9094}
+    health_endpoint: /health
+    
+  projects_service:
+    host: ${PROJECTS_SERVICE_HOST:projects-service-staging.internal}
+    http_port: ${PROJECTS_SERVICE_HTTP_PORT:8085}
+    grpc_port: ${PROJECTS_SERVICE_GRPC_PORT:9095}
+    health_endpoint: /health
+    
+  ai_service:
+    host: ${AI_SERVICE_HOST:ai-service-staging.internal}
+    http_port: ${AI_SERVICE_HTTP_PORT:8086}
+    grpc_port: ${AI_SERVICE_GRPC_PORT:9096}
+    health_endpoint: /health
+    
+  notification_service:
+    host: ${NOTIFICATION_SERVICE_HOST:notification-service-staging.internal}
+    http_port: ${NOTIFICATION_SERVICE_HTTP_PORT:8087}
+    grpc_port: ${NOTIFICATION_SERVICE_GRPC_PORT:9097}
+    health_endpoint: /health
+    
+  frontend:
+    host: ${FRONTEND_HOST:staging.erp-suite.com}
+    port: ${FRONTEND_PORT:3000}
+    
+  admin_panel:
+    host: ${ADMIN_PANEL_HOST:admin-staging.erp-suite.com}
+    port: ${ADMIN_PANEL_PORT:3001}
+
+# ============================================================================
+# EXTERNAL INTEGRATIONS
+# ============================================================================
+
+external:
+  email:
+    provider: ${EMAIL_PROVIDER:smtp}
+    smtp_host: ${SMTP_HOST}
+    smtp_port: ${SMTP_PORT:587}
+    smtp_username: ${SMTP_USERNAME}
+    smtp_password: ${SMTP_PASSWORD}
+    from_address: ${EMAIL_FROM_ADDRESS:noreply@staging.erp-suite.com}
+    use_tls: true
+    
+  storage:
+    provider: ${STORAGE_PROVIDER:s3}
+    s3_bucket: ${S3_BUCKET:erp-suite-staging}
+    s3_region: ${S3_REGION:us-east-1}
+    s3_access_key: ${S3_ACCESS_KEY}
+    s3_secret_key: ${S3_SECRET_KEY}
+    
+  ai:
+    openai:
+      api_key: ${OPENAI_API_KEY}
+      model: ${OPENAI_MODEL:gpt-3.5-turbo}
+      max_tokens: ${OPENAI_MAX_TOKENS:1500}
+      
+  payment:
+    stripe:
+      publishable_key: ${STRIPE_PUBLISHABLE_KEY}
+      secret_key: ${STRIPE_SECRET_KEY}
+      webhook_secret: ${STRIPE_WEBHOOK_SECRET}
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+
+feature_flags:
+  ai_assistant: ${FEATURE_AI_ASSISTANT:true}
+  real_time_notifications: ${FEATURE_REALTIME_NOTIFICATIONS:true}
+  advanced_analytics: ${FEATURE_ADVANCED_ANALYTICS:true}
+  multi_language: ${FEATURE_MULTI_LANGUAGE:false}
+  mobile_app: ${FEATURE_MOBILE_APP:false}
+  api_versioning: ${FEATURE_API_VERSIONING:true}
+  audit_logging: ${FEATURE_AUDIT_LOGGING:true}
+  performance_monitoring: ${FEATURE_PERFORMANCE_MONITORING:true}
+
+# ============================================================================
+# PERFORMANCE & SCALING
+# ============================================================================
+
+performance:
+  connection_pools:
+    postgres_max: 150
+    mongodb_max: 150
+    redis_max: 150
+    
+  timeouts:
+    database_query: 30s
+    http_request: 30s
+    grpc_request: 30s
+    
+  caching:
+    default_ttl: 1800  # 30 minutes
+    user_session_ttl: 43200  # 12 hours
+    api_response_ttl: 300  # 5 minutes
+    
+  scaling:
+    auto_scaling: true
+    min_replicas: 2
+    max_replicas: 8
+    target_cpu_utilization: 70
+    target_memory_utilization: 80

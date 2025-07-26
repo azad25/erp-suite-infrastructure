@@ -1,0 +1,212 @@
+# ERP Suite Infrastructure Connection Configuration
+# This file contains all database and service connection strings for development
+
+# ============================================================================
+# DATABASE CONNECTIONS
+# ============================================================================
+
+databases:
+  postgresql:
+    host: localhost
+    port: 5432
+    username: postgres
+    password: postgres
+    databases:
+      auth: erp_auth
+      crm: erp_crm
+      hrm: erp_hrm
+      finance: erp_finance
+      inventory: erp_inventory
+      projects: erp_projects
+      analytics: erp_analytics
+    connection_string: "postgresql://postgres:postgres@localhost:5432/{database}?sslmode=disable"
+    
+  mongodb:
+    host: localhost
+    port: 27017
+    username: root
+    password: password
+    databases:
+      analytics: erp_analytics
+      logs: erp_logs
+      ai_conversations: erp_ai_conversations
+      audit_trail: erp_audit_trail
+    connection_string: "mongodb://root:password@localhost:27017/{database}?authSource=admin"
+    
+  redis:
+    host: localhost
+    port: 6379
+    password: redispassword
+    databases:
+      cache: 0
+      sessions: 1
+      queues: 2
+      websocket: 3
+    connection_string: "redis://:redispassword@localhost:6379/{database}"
+    
+  qdrant:
+    host: localhost
+    http_port: 6333
+    grpc_port: 6334
+    collections:
+      documents: "erp_documents"
+      products: "erp_products"
+      conversations: "erp_conversations"
+      knowledge_base: "erp_knowledge"
+    connection_string: "http://localhost:6333"
+
+# ============================================================================
+# MESSAGE BROKERS
+# ============================================================================
+
+message_brokers:
+  kafka:
+    brokers:
+      - localhost:9092
+    topics:
+      auth_events: "auth-events"
+      user_events: "user-events"
+      business_events: "business-events"
+      system_events: "system-events"
+      ai_events: "ai-events"
+    consumer_groups:
+      auth_service: "auth-service-group"
+      notification_service: "notification-service-group"
+      analytics_service: "analytics-service-group"
+      audit_service: "audit-service-group"
+
+# ============================================================================
+# SEARCH & ANALYTICS
+# ============================================================================
+
+search:
+  elasticsearch:
+    host: localhost
+    port: 9200
+    username: elastic
+    password: password
+    indices:
+      contacts: "erp_contacts"
+      products: "erp_products"
+      documents: "erp_documents"
+      employees: "erp_employees"
+      transactions: "erp_transactions"
+    connection_string: "http://elastic:password@localhost:9200"
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+
+monitoring:
+  prometheus:
+    host: localhost
+    port: 9090
+    connection_string: "http://localhost:9090"
+    
+  grafana:
+    host: localhost
+    port: 3000
+    username: admin
+    password: admin
+    connection_string: "http://admin:admin@localhost:3000"
+    
+  jaeger:
+    host: localhost
+    port: 16686
+    grpc_port: 14250
+    connection_string: "http://localhost:16686"
+
+# ============================================================================
+# REAL-TIME COMMUNICATION
+# ============================================================================
+
+realtime:
+  websocket:
+    host: localhost
+    port: 3001
+    connection_string: "http://localhost:3001"
+    socket_path: "/socket.io/"
+
+# ============================================================================
+# DEVELOPMENT TOOLS
+# ============================================================================
+
+dev_tools:
+  pgadmin:
+    host: localhost
+    port: 8081
+    email: admin@erp.com
+    password: admin
+    connection_string: "http://localhost:8081"
+    
+  mongo_express:
+    host: localhost
+    port: 8082
+    username: admin
+    password: pass
+    connection_string: "http://localhost:8082"
+    
+  redis_commander:
+    host: localhost
+    port: 8083
+    connection_string: "http://localhost:8083"
+    
+  kafka_ui:
+    host: localhost
+    port: 8084
+    connection_string: "http://localhost:8084"
+    
+  kibana:
+    host: localhost
+    port: 5601
+    username: elastic
+    password: password
+    connection_string: "http://elastic:password@localhost:5601"
+
+# ============================================================================
+# ENVIRONMENT VARIABLES FOR MODULES
+# ============================================================================
+
+environment_variables:
+  # Database connections
+  DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/erp_auth?sslmode=disable"
+  MONGODB_URL: "mongodb://root:password@localhost:27017/erp_analytics?authSource=admin"
+  REDIS_URL: "redis://:redispassword@localhost:6379/0"
+  QDRANT_URL: "http://localhost:6333"
+  
+  # Message brokers
+  KAFKA_BROKERS: "localhost:9092"
+  KAFKA_TOPIC_PREFIX: "erp"
+  
+  # Search
+  ELASTICSEARCH_URL: "http://elastic:password@localhost:9200"
+  
+  # Monitoring
+  PROMETHEUS_URL: "http://localhost:9090"
+  JAEGER_ENDPOINT: "http://localhost:14268/api/traces"
+  
+  # Real-time
+  WEBSOCKET_URL: "http://localhost:3001"
+  
+  # Security
+  JWT_SECRET: "your-super-secret-jwt-key-change-in-production"
+  REDIS_PASSWORD: "redispassword"
+  
+  # Service discovery
+  SERVICE_REGISTRY: "consul://localhost:8500"  # If using Consul
+  
+# ============================================================================
+# KUBERNETES SERVICE NAMES (for production)
+# ============================================================================
+
+kubernetes:
+  services:
+    postgres: "postgres.erp-system.svc.cluster.local:5432"
+    mongodb: "mongodb.erp-system.svc.cluster.local:27017"
+    redis: "redis.erp-system.svc.cluster.local:6379"
+    qdrant: "qdrant.erp-system.svc.cluster.local:6333"
+    kafka: "kafka.erp-system.svc.cluster.local:9092"
+    elasticsearch: "elasticsearch.erp-system.svc.cluster.local:9200"
+    prometheus: "prometheus.erp-system.svc.cluster.local:9090"
+    grafana: "grafana.erp-system.svc.cluster.local:3000"
+    jaeger: "jaeger.erp-system.svc.cluster.local:16686"

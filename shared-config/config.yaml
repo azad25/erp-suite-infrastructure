@@ -1,0 +1,444 @@
+# ERP Suite Shared Configuration
+# This is the main configuration file that defines the structure and defaults
+# for all environments and modules in the ERP Suite
+
+# ============================================================================
+# CONFIGURATION METADATA
+# ============================================================================
+
+config:
+  version: "1.0.0"
+  last_updated: "2025-01-26"
+  description: "ERP Suite shared configuration system"
+  maintainer: "ERP Suite Development Team"
+
+# ============================================================================
+# SUPPORTED ENVIRONMENTS
+# ============================================================================
+
+environments:
+  - name: development
+    description: "Local development environment"
+    config_file: "development.yaml"
+    default: true
+  - name: testing
+    description: "Automated testing environment"
+    config_file: "testing.yaml"
+  - name: staging
+    description: "Pre-production staging environment"
+    config_file: "staging.yaml"
+  - name: production
+    description: "Production environment"
+    config_file: "production.yaml"
+
+# ============================================================================
+# SUPPORTED MODULES
+# ============================================================================
+
+modules:
+  - name: auth
+    description: "Authentication and authorization service"
+    type: backend
+    language: go
+    database: postgresql
+    ports:
+      http: 8080
+      grpc: 9090
+    dependencies:
+      - redis
+      - kafka
+      - postgresql
+  
+  - name: crm
+    description: "Customer relationship management service"
+    type: backend
+    language: go
+    database: postgresql
+    ports:
+      http: 8081
+      grpc: 9091
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - postgresql
+      - elasticsearch
+  
+  - name: hrm
+    description: "Human resource management service"
+    type: backend
+    language: go
+    database: postgresql
+    ports:
+      http: 8082
+      grpc: 9092
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - postgresql
+      - elasticsearch
+  
+  - name: finance
+    description: "Financial management service"
+    type: backend
+    language: go
+    database: postgresql
+    ports:
+      http: 8083
+      grpc: 9093
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - postgresql
+      - elasticsearch
+  
+  - name: inventory
+    description: "Inventory management service"
+    type: backend
+    language: go
+    database: postgresql
+    ports:
+      http: 8084
+      grpc: 9094
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - postgresql
+      - elasticsearch
+  
+  - name: projects
+    description: "Project management service"
+    type: backend
+    language: go
+    database: postgresql
+    ports:
+      http: 8085
+      grpc: 9095
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - postgresql
+      - elasticsearch
+  
+  - name: ai
+    description: "AI and machine learning service"
+    type: backend
+    language: python
+    database: mongodb
+    ports:
+      http: 8086
+      grpc: 9096
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - mongodb
+      - qdrant
+      - elasticsearch
+  
+  - name: notification
+    description: "Notification service"
+    type: backend
+    language: go
+    database: mongodb
+    ports:
+      http: 8087
+      grpc: 9097
+    dependencies:
+      - auth
+      - redis
+      - kafka
+      - mongodb
+  
+  - name: frontend
+    description: "Main frontend application"
+    type: frontend
+    language: typescript
+    framework: nextjs
+    ports:
+      http: 3000
+    dependencies:
+      - auth
+      - websocket
+  
+  - name: admin
+    description: "Admin panel frontend"
+    type: frontend
+    language: typescript
+    framework: nextjs
+    ports:
+      http: 3001
+    dependencies:
+      - auth
+      - websocket
+
+# ============================================================================
+# INFRASTRUCTURE SERVICES
+# ============================================================================
+
+infrastructure:
+  databases:
+    postgresql:
+      description: "Primary relational database"
+      version: "15"
+      port: 5432
+      used_by:
+        - auth
+        - crm
+        - hrm
+        - finance
+        - inventory
+        - projects
+    
+    mongodb:
+      description: "Document database for analytics and logs"
+      version: "7.0"
+      port: 27017
+      used_by:
+        - ai
+        - notification
+        - analytics
+    
+    redis:
+      description: "In-memory cache and session store"
+      version: "7.2"
+      port: 6379
+      used_by:
+        - auth
+        - crm
+        - hrm
+        - finance
+        - inventory
+        - projects
+        - ai
+        - notification
+    
+    qdrant:
+      description: "Vector database for AI embeddings"
+      version: "1.7"
+      ports:
+        http: 6333
+        grpc: 6334
+      used_by:
+        - ai
+  
+  messaging:
+    kafka:
+      description: "Event streaming platform"
+      version: "3.6"
+      port: 9092
+      used_by:
+        - auth
+        - crm
+        - hrm
+        - finance
+        - inventory
+        - projects
+        - ai
+        - notification
+  
+  search:
+    elasticsearch:
+      description: "Search and analytics engine"
+      version: "8.11"
+      port: 9200
+      used_by:
+        - crm
+        - hrm
+        - finance
+        - inventory
+        - projects
+        - ai
+  
+  monitoring:
+    prometheus:
+      description: "Metrics collection and monitoring"
+      version: "2.48"
+      port: 9090
+    
+    grafana:
+      description: "Metrics visualization and dashboards"
+      version: "10.2"
+      port: 3000
+    
+    jaeger:
+      description: "Distributed tracing"
+      version: "1.52"
+      ports:
+        ui: 16686
+        grpc: 14250
+        http: 14268
+        agent: 6831
+  
+  communication:
+    websocket:
+      description: "Real-time communication server"
+      technology: "socket.io"
+      port: 3001
+      used_by:
+        - frontend
+        - admin
+
+# ============================================================================
+# CONFIGURATION TEMPLATES
+# ============================================================================
+
+templates:
+  environment_variables:
+    - name: ".env.template"
+      description: "Generic environment variables template"
+      path: "templates/.env.template"
+    
+    - name: "docker.template"
+      description: "Docker environment template"
+      path: "templates/docker.template"
+    
+    - name: "k8s.template"
+      description: "Kubernetes ConfigMap template"
+      path: "templates/k8s.template"
+
+# ============================================================================
+# GENERATORS
+# ============================================================================
+
+generators:
+  - name: "go"
+    description: "Go environment generator"
+    path: "generators/generate-env.go"
+    command: "go run generators/generate-env.go"
+    supported_modules:
+      - auth
+      - crm
+      - hrm
+      - finance
+      - inventory
+      - projects
+      - notification
+  
+  - name: "python"
+    description: "Python environment generator"
+    path: "generators/generate-env.py"
+    command: "python generators/generate-env.py"
+    supported_modules:
+      - ai
+  
+  - name: "nodejs"
+    description: "Node.js environment generator"
+    path: "generators/generate-env.js"
+    command: "node generators/generate-env.js"
+    supported_modules:
+      - frontend
+      - admin
+      - websocket
+
+# ============================================================================
+# VALIDATION RULES
+# ============================================================================
+
+validation:
+  required_variables:
+    all_environments:
+      - JWT_SECRET
+      - DB_PASSWORD
+      - REDIS_PASSWORD
+    
+    production_only:
+      - ENCRYPTION_KEY
+      - KAFKA_SASL_USERNAME
+      - KAFKA_SASL_PASSWORD
+      - ELASTICSEARCH_PASSWORD
+      - MONGODB_PASSWORD
+  
+  port_ranges:
+    http_services: "8080-8099"
+    grpc_services: "9090-9109"
+    frontend_services: "3000-3099"
+    infrastructure: "5000-6999"
+  
+  naming_conventions:
+    environment_files: ".env.{module}.{environment}"
+    database_names: "erp_{module}_{environment}"
+    kafka_topics: "{event_type}-{environment}"
+    kafka_groups: "{service}-group-{environment}"
+
+# ============================================================================
+# SECURITY POLICIES
+# ============================================================================
+
+security:
+  encryption:
+    required_environments:
+      - staging
+      - production
+    algorithm: "AES-256-GCM"
+  
+  secrets_management:
+    development: "plain_text"  # For development only
+    testing: "plain_text"      # For testing only
+    staging: "encrypted"       # Use encrypted secrets
+    production: "encrypted"    # Use encrypted secrets
+  
+  network_policies:
+    development: "permissive"
+    testing: "permissive"
+    staging: "restrictive"
+    production: "restrictive"
+
+# ============================================================================
+# DEPLOYMENT CONFIGURATIONS
+# ============================================================================
+
+deployment:
+  docker:
+    registry: "ghcr.io/erp-suite"
+    tag_format: "{module}:{version}-{environment}"
+  
+  kubernetes:
+    namespace_format: "erp-{environment}"
+    resource_limits:
+      development:
+        cpu: "500m"
+        memory: "512Mi"
+      staging:
+        cpu: "1000m"
+        memory: "1Gi"
+      production:
+        cpu: "2000m"
+        memory: "2Gi"
+  
+  scaling:
+    development:
+      min_replicas: 1
+      max_replicas: 2
+    staging:
+      min_replicas: 2
+      max_replicas: 5
+    production:
+      min_replicas: 3
+      max_replicas: 10
+
+# ============================================================================
+# MONITORING & ALERTING
+# ============================================================================
+
+monitoring:
+  metrics:
+    collection_interval: "15s"
+    retention_period: "30d"
+  
+  alerts:
+    cpu_threshold: 80
+    memory_threshold: 85
+    disk_threshold: 90
+    response_time_threshold: "2s"
+  
+  logging:
+    retention_period:
+      development: "7d"
+      testing: "3d"
+      staging: "30d"
+      production: "90d"

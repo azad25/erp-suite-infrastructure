@@ -1,0 +1,369 @@
+# Testing Environment Configuration
+# This file contains all service configurations for the testing environment
+
+environment:
+  name: testing
+  debug: true
+  log_level: debug
+  hot_reload: false
+
+# ============================================================================
+# DATABASE CONFIGURATIONS
+# ============================================================================
+
+databases:
+  postgresql:
+    host: localhost
+    port: 5433  # Different port to avoid conflicts
+    username: postgres_test
+    password: postgres_test
+    ssl_mode: disable
+    max_connections: 50
+    connection_timeout: 10
+    databases:
+      auth: erp_auth_test
+      crm: erp_crm_test
+      hrm: erp_hrm_test
+      finance: erp_finance_test
+      inventory: erp_inventory_test
+      projects: erp_projects_test
+      analytics: erp_analytics_test
+    
+  mongodb:
+    host: localhost
+    port: 27018  # Different port to avoid conflicts
+    username: root_test
+    password: password_test
+    auth_source: admin
+    max_pool_size: 50
+    databases:
+      analytics: erp_analytics_test
+      logs: erp_logs_test
+      ai_conversations: erp_ai_conversations_test
+      audit_trail: erp_audit_trail_test
+    
+  redis:
+    host: localhost
+    port: 6380  # Different port to avoid conflicts
+    password: redispassword_test
+    max_connections: 50
+    databases:
+      cache: 0
+      sessions: 1
+      queues: 2
+      websocket: 3
+      rate_limiting: 4
+    
+  qdrant:
+    host: localhost
+    http_port: 6334  # Different port to avoid conflicts
+    grpc_port: 6335  # Different port to avoid conflicts
+    api_key: null  # No API key in testing
+    collections:
+      documents: erp_documents_test
+      products: erp_products_test
+      conversations: erp_conversations_test
+      knowledge_base: erp_knowledge_test
+      embeddings: erp_embeddings_test
+
+# ============================================================================
+# MESSAGE BROKER CONFIGURATIONS
+# ============================================================================
+
+messaging:
+  kafka:
+    brokers:
+      - localhost:9093  # Different port to avoid conflicts
+    security_protocol: PLAINTEXT
+    sasl_mechanism: null
+    topics:
+      auth_events: auth-events-test
+      user_events: user-events-test
+      business_events: business-events-test
+      system_events: system-events-test
+      ai_events: ai-events-test
+      notification_events: notification-events-test
+    consumer_groups:
+      auth_service: auth-service-group-test
+      crm_service: crm-service-group-test
+      hrm_service: hrm-service-group-test
+      finance_service: finance-service-group-test
+      inventory_service: inventory-service-group-test
+      projects_service: projects-service-group-test
+      notification_service: notification-service-group-test
+      analytics_service: analytics-service-group-test
+      audit_service: audit-service-group-test
+      ai_service: ai-service-group-test
+    producer_config:
+      acks: 1
+      retries: 1
+      batch_size: 8192
+      linger_ms: 5
+    consumer_config:
+      auto_offset_reset: earliest
+      enable_auto_commit: true
+      session_timeout_ms: 10000
+
+# ============================================================================
+# SEARCH & ANALYTICS
+# ============================================================================
+
+search:
+  elasticsearch:
+    host: localhost
+    port: 9201  # Different port to avoid conflicts
+    username: elastic_test
+    password: password_test
+    use_ssl: false
+    verify_certs: false
+    indices:
+      contacts: erp_contacts_test
+      products: erp_products_test
+      documents: erp_documents_test
+      employees: erp_employees_test
+      transactions: erp_transactions_test
+      projects: erp_projects_test
+      knowledge_base: erp_knowledge_test
+    settings:
+      number_of_shards: 1
+      number_of_replicas: 0
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+
+monitoring:
+  prometheus:
+    host: localhost
+    port: 9091  # Different port to avoid conflicts
+    scrape_interval: 5s
+    evaluation_interval: 5s
+    
+  grafana:
+    host: localhost
+    port: 3001  # Different port to avoid conflicts
+    username: admin_test
+    password: admin_test
+    
+  jaeger:
+    host: localhost
+    port: 16687  # Different port to avoid conflicts
+    grpc_port: 14251  # Different port to avoid conflicts
+    http_port: 14269  # Different port to avoid conflicts
+    agent_host: localhost
+    agent_port: 6832  # Different port to avoid conflicts
+    
+  logging:
+    level: debug
+    format: json
+    output: stdout
+
+# ============================================================================
+# REAL-TIME COMMUNICATION
+# ============================================================================
+
+realtime:
+  websocket:
+    host: localhost
+    port: 3002  # Different port to avoid conflicts
+    path: /socket.io/
+    cors_origins:
+      - http://localhost:3000
+      - http://localhost:3001
+      - http://localhost:3002
+      - http://localhost:8080
+    transports:
+      - websocket
+      - polling
+
+# ============================================================================
+# SECURITY CONFIGURATIONS
+# ============================================================================
+
+security:
+  jwt:
+    secret: test-jwt-secret-key-not-for-production
+    access_token_expiry: 7200  # 2 hours for easier testing
+    refresh_token_expiry: 86400  # 24 hours
+    algorithm: HS256
+    
+  cors:
+    allowed_origins:
+      - http://localhost:3000
+      - http://localhost:3001
+      - http://localhost:3002
+      - http://localhost:8080
+      - http://localhost:8081
+      - http://localhost:8082
+      - http://localhost:8083
+      - http://localhost:8084
+      - http://localhost:8085
+      - http://localhost:8086
+      - http://localhost:8087
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      - PATCH
+    allowed_headers:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+      - X-Test-Header
+    allow_credentials: true
+    
+  rate_limiting:
+    enabled: false  # Disabled for testing
+    requests_per_minute: 10000
+    burst_size: 1000
+
+# ============================================================================
+# SERVICE DISCOVERY
+# ============================================================================
+
+services:
+  auth_service:
+    host: localhost
+    http_port: 8090  # Different ports to avoid conflicts
+    grpc_port: 9100
+    health_endpoint: /health
+    
+  crm_service:
+    host: localhost
+    http_port: 8091
+    grpc_port: 9101
+    health_endpoint: /health
+    
+  hrm_service:
+    host: localhost
+    http_port: 8092
+    grpc_port: 9102
+    health_endpoint: /health
+    
+  finance_service:
+    host: localhost
+    http_port: 8093
+    grpc_port: 9103
+    health_endpoint: /health
+    
+  inventory_service:
+    host: localhost
+    http_port: 8094
+    grpc_port: 9104
+    health_endpoint: /health
+    
+  projects_service:
+    host: localhost
+    http_port: 8095
+    grpc_port: 9105
+    health_endpoint: /health
+    
+  ai_service:
+    host: localhost
+    http_port: 8096
+    grpc_port: 9106
+    health_endpoint: /health
+    
+  notification_service:
+    host: localhost
+    http_port: 8097
+    grpc_port: 9107
+    health_endpoint: /health
+    
+  frontend:
+    host: localhost
+    port: 3010  # Different port to avoid conflicts
+    
+  admin_panel:
+    host: localhost
+    port: 3011  # Different port to avoid conflicts
+
+# ============================================================================
+# EXTERNAL INTEGRATIONS
+# ============================================================================
+
+external:
+  email:
+    provider: mock  # Use mock provider for testing
+    smtp_host: localhost
+    smtp_port: 1026  # MailHog test port
+    smtp_username: ""
+    smtp_password: ""
+    from_address: test@erp-suite.test
+    
+  storage:
+    provider: local
+    local_path: ./test_storage
+    
+  ai:
+    openai:
+      api_key: "test-api-key"  # Mock API key for testing
+      model: gpt-3.5-turbo
+      max_tokens: 500
+      
+  payment:
+    stripe:
+      publishable_key: "pk_test_mock"  # Mock keys for testing
+      secret_key: "sk_test_mock"
+      webhook_secret: "whsec_test_mock"
+
+# ============================================================================
+# FEATURE FLAGS
+# ============================================================================
+
+feature_flags:
+  ai_assistant: true
+  real_time_notifications: true
+  advanced_analytics: true
+  multi_language: false
+  mobile_app: false
+  api_versioning: true
+  audit_logging: true
+  performance_monitoring: false  # Disabled for testing performance
+
+# ============================================================================
+# TESTING SPECIFIC CONFIGURATIONS
+# ============================================================================
+
+testing:
+  database_cleanup: true  # Clean database after each test
+  mock_external_services: true  # Mock external API calls
+  test_data_seeding: true  # Seed test data
+  parallel_execution: true  # Allow parallel test execution
+  timeout_multiplier: 2  # Increase timeouts for CI environments
+  
+  test_users:
+    admin:
+      email: admin@test.com
+      password: admin123
+      role: admin
+    user:
+      email: user@test.com
+      password: user123
+      role: user
+    manager:
+      email: manager@test.com
+      password: manager123
+      role: manager
+
+# ============================================================================
+# PERFORMANCE & SCALING (Minimal for testing)
+# ============================================================================
+
+performance:
+  connection_pools:
+    postgres_max: 20
+    mongodb_max: 20
+    redis_max: 20
+    
+  timeouts:
+    database_query: 5s
+    http_request: 10s
+    grpc_request: 10s
+    
+  caching:
+    default_ttl: 300  # 5 minutes
+    user_session_ttl: 3600  # 1 hour
+    api_response_ttl: 60  # 1 minute
