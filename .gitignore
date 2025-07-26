@@ -1,0 +1,199 @@
+# Environment Configuration
+.env
+.env.local
+.env.*.local
+
+# Docker Volumes and Data
+volumes/
+data/
+backups/
+*.backup
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime and Temporary Files
+*.pid
+*.seed
+*.pid.lock
+.tmp/
+tmp/
+
+# Node.js (GraphQL Gateway & WebSocket Server)
+node_modules/
+.npm
+.node_repl_history
+package-lock.json
+yarn.lock
+
+# Python (if any Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+docker-compose.*.override.yml
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+.kube/
+
+# SSL Certificates and Keys
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+ssl/
+certs/
+certificates/
+
+# Database Files (if running locally)
+*.db
+*.sqlite
+*.sqlite3
+
+# Monitoring and Metrics Data
+prometheus_data/
+grafana_data/
+jaeger_data/
+
+# Generated Configuration Files
+config/generated/
+config/*.generated.*
+
+# Shared Config Generated Files
+shared-config/.env.*
+shared-config/generated/
+shared-config/output/
+
+# GraphQL Gateway Generated Files
+graphql-gateway/src/proto/*.js
+graphql-gateway/src/proto/*_pb.js
+graphql-gateway/src/proto/*_grpc_pb.js
+graphql-gateway/dist/
+graphql-gateway/build/
+
+# WebSocket Server Generated Files
+websocket-server/dist/
+websocket-server/build/
+
+# Terraform (if used for infrastructure)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+
+# Helm (if used for Kubernetes)
+charts/*.tgz
+charts/*/charts/
+charts/*/requirements.lock
+
+# Coverage Reports
+coverage/
+*.lcov
+.nyc_output/
+
+# Test Results
+test-results/
+junit.xml
+
+# Build Artifacts
+dist/
+build/
+out/
+
+# Cache Directories
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+
+# Local Development Overrides
+docker-compose.local.yml
+docker-compose.dev.override.yml
+local-config/
+dev-overrides/
+
+# Secrets and Sensitive Data
+secrets/
+.secrets/
+*.secret
+*-secret.yaml
+*-secret.yml
+
+# Backup Files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Temporary Docker Files
+Dockerfile.tmp
+docker-compose.tmp.yml
+
+# Local Scripts
+local-scripts/
+dev-scripts/
+*.local.sh
+
+# Documentation Build
+docs/_build/
+docs/.doctrees/
+
+# MacOS
+.AppleDouble
+.LSOverride
+Icon
+
+# Windows
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*

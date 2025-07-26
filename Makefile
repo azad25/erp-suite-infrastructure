@@ -32,7 +32,8 @@ help:
 	@echo "Docker Compose Commands:"
 	@echo "  dev-up               - Start all infrastructure services"
 	@echo "  dev-infrastructure   - Start infrastructure services (recommended)"
-	@echo "  dev-down             - Stop all services"
+	@echo "  dev-down             - Stop all services (with timeout)"
+	@echo "  force-stop           - Force stop all services (emergency)"
 	@echo "  dev-full-stack       - Start infrastructure + core application services"
 	@echo "  dev-full-stack-down  - Stop full development stack"
 	@echo "  db-up                - Start database services only"
@@ -155,8 +156,22 @@ print-service-urls:
 # Stop all services
 dev-down:
 	@echo "🛑 Stopping ERP Suite infrastructure..."
-	@docker compose down --remove-orphans || docker compose down
+	@echo "Stopping containers with timeout..."
+	@docker compose stop --timeout 10 2>/dev/null || true
+	@echo "Removing containers..."
+	@docker compose down --remove-orphans --timeout 5 2>/dev/null || true
+	@echo "Force stopping any remaining ERP containers..."
+	@docker stop $$(docker ps -q --filter "name=erp-suite") 2>/dev/null || true
+	@docker rm $$(docker ps -aq --filter "name=erp-suite") 2>/dev/null || true
 	@echo "✅ All services stopped!"
+
+# Force stop all services (emergency)
+force-stop:
+	@echo "🚨 Force stopping all ERP services..."
+	@docker kill $$(docker ps -q --filter "name=erp-suite") 2>/dev/null || true
+	@docker rm -f $$(docker ps -aq --filter "name=erp-suite") 2>/dev/null || true
+	@docker network rm $$(docker network ls -q --filter "name=erp-suite") 2>/dev/null || true
+	@echo "✅ Force stop complete!"
 
 # Start database services only
 db-up: prepare-environment
@@ -187,26 +202,12 @@ logs-%:
 # Show service status
 status:
 	@echo "📊 Service Status:"
-	@docker compose ps
+	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No services running"
+	@echo ""
+	@echo "🐳 All ERP containers:"
+	@docker ps --filter "name=erp-suite" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No ERP containers found"
 
-# Check service health
-health:
-	@echo "🏥 ERP Suite Health Check:"
-	@echo ""
-	@echo "📊 Service Status:"
-	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
-	@echo ""
-	@echo "🔍 Quick Connectivity Tests:"
-	@echo -n "PostgreSQL: "
-	@docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Redis: "
-	@docker compose exec -T redis redis-cli --no-auth-warning -a redispassword ping > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "MongoDB: "
-	@docker compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Kafka: "
-	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Elasticsearch: "
-	@curl -s -u elastic:password http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+# Service health check is now handled by the enhanced health target below
 
 # Clean up all containers and volumes
 clean:
