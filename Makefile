@@ -188,13 +188,19 @@ kafka-topics:
 	@echo "⏳ Waiting for Kafka to be fully ready for topic operations..."
 	@sleep 15
 	@echo "🔍 Testing Kafka connectivity first..."
-	@timeout 30 docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 || { echo "⚠️ Kafka not ready, skipping topic creation"; exit 0; }
-	@topics="auth-events user-events business-events system-events"; \
-	for topic in $$topics; do \
-		echo "Creating topic: $$topic"; \
-		timeout 20 docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --if-not-exists > /dev/null 2>&1 && echo "✅ Topic $$topic created" || echo "⚠️ Topic $$topic already exists or creation failed"; \
-	done
-	@echo "✅ Kafka topics initialization complete!"
+	@if timeout 30 docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1; then \
+		echo "✅ Kafka is ready for topic operations"; \
+		topics="auth-events user-events business-events system-events"; \
+		for topic in $$topics; do \
+			echo "Creating topic: $$topic"; \
+			timeout 20 docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --if-not-exists > /dev/null 2>&1 && echo "✅ Topic $$topic created" || echo "⚠️ Topic $$topic already exists or creation failed"; \
+		done; \
+		echo "✅ Kafka topics initialization complete!"; \
+	else \
+		echo "⚠️ Kafka not ready after waiting, skipping topic creation"; \
+		echo "💡 You can create topics later with: make kafka-topics"; \
+		echo "✅ Continuing with infrastructure startup..."; \
+	fi
 
 # ============================================================================
 # ESSENTIAL COMMANDS
