@@ -43,6 +43,8 @@ help:
 	@echo "  grpc-up              - Start gRPC Registry only"
 	@echo "  infrastructure-only  - Start only core infrastructure (no API layer)"
 	@echo "  minimal              - Start minimal services (databases + message brokers)"
+	@echo "  macos-fast           - Start infrastructure optimized for macOS performance"
+	@echo "  macos-minimal        - Start only essential services for macOS development"
 	@echo "  logs                 - Show logs from all services"
 	@echo "  clean                - Clean up all containers and volumes"
 	@echo ""
@@ -68,6 +70,11 @@ help:
 	@echo "  restore              - Restore from backup (BACKUP_DIR=path)"
 	@echo "  setup                - Full setup for first time"
 	@echo "  restart              - Stop and start infrastructure (one command)"
+	@echo ""
+	@echo "macOS Optimization Commands:"
+	@echo "  macos-config         - Switch to macOS-optimized configuration"
+	@echo "  macos-performance    - Check Docker performance on macOS"
+	@echo "  macos-clean          - Clean up and optimize Docker for macOS"
 
 # ============================================================================
 # DOCKER COMPOSE COMMANDS
@@ -699,3 +706,119 @@ env-setup:
 	else \
 		echo "⚠️  .env file already exists"; \
 	fi
+
+# ============================================================================
+# MACOS OPTIMIZED COMMANDS
+# ============================================================================
+
+# Start infrastructure optimized for macOS performance
+macos-fast: prepare-environment
+	@echo "🍎 Starting ERP Suite infrastructure optimized for macOS..."
+	@echo "This configuration reduces resource usage and startup time on macOS"
+	@echo "Starting essential services first..."
+	@docker compose up -d postgres redis
+	@echo "⏳ Waiting for databases to be ready..."
+	@sleep 10
+	@echo "Starting remaining infrastructure services..."
+	@docker compose --profile infrastructure up -d
+	@echo "⏳ Waiting for services to stabilize..."
+	@sleep 15
+	@echo "Starting API layer..."
+	@docker compose --profile api-layer up -d
+	@$(MAKE) kafka-topics
+	@$(MAKE) init-dbs
+	@echo "✅ macOS-optimized infrastructure started!"
+	@$(MAKE) print-macos-info
+
+# Start only essential services for macOS development
+macos-minimal: prepare-environment
+	@echo "🍎 Starting minimal ERP Suite services for macOS..."
+	@echo "This includes only PostgreSQL, Redis, and GraphQL Gateway"
+	@docker compose up -d postgres redis
+	@echo "⏳ Waiting for databases..."
+	@sleep 10
+	@docker compose up -d graphql-gateway grpc-registry
+	@$(MAKE) init-dbs
+	@echo "✅ Minimal macOS setup complete!"
+	@echo ""
+	@echo "📋 Available Services:"
+	@echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"
+	@echo "  Redis:               localhost:6379 (password: redispassword)"
+	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
+	@echo "  gRPC Registry:       http://localhost:8500"
+	@echo ""
+	@echo "💡 To add more services later:"
+	@echo "  make db-up           - Add MongoDB and Qdrant"
+	@echo "  make tools-up        - Add development tools"
+	@echo "  docker compose up -d kafka  - Add Kafka"
+
+# Print macOS-specific information
+print-macos-info:
+	@echo ""
+	@echo "🍎 macOS-Optimized Infrastructure Ready!"
+	@echo ""
+	@echo "📋 Core Services:"
+	@echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"
+	@echo "  Redis:               localhost:6379 (password: redispassword)"
+	@echo "  MongoDB:             localhost:27017 (root/password)"
+	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
+	@echo "  gRPC Registry:       http://localhost:8500"
+	@echo ""
+	@echo "⚡ Performance Tips for macOS:"
+	@echo "  • Services start sequentially to reduce resource contention"
+	@echo "  • Memory usage optimized for Docker Desktop on macOS"
+	@echo "  • Health checks reduced to minimize CPU usage"
+	@echo "  • Use 'make macos-minimal' for fastest startup"
+	@echo ""
+	@echo "🔧 Optional Services (start as needed):"
+	@echo "  make tools-up        - Development tools (pgAdmin, etc.)"
+	@echo "  docker compose up -d kafka elasticsearch  - Message queue & search"
+
+# Switch to macOS-optimized configuration
+macos-config:
+	@echo "🍎 Switching to macOS-optimized configuration..."
+	@if [ -f .env.macos ]; then \
+		cp .env.macos .env; \
+		echo "✅ Switched to macOS-optimized .env configuration"; \
+		echo ""; \
+		echo "📋 Optimizations applied:"; \
+		echo "  • Reduced Elasticsearch memory (256MB instead of 512MB)"; \
+		echo "  • Optimized Kafka memory usage"; \
+		echo "  • Reduced health check frequency"; \
+		echo "  • Disabled optional services by default"; \
+		echo "  • Set log level to 'warn' to reduce I/O"; \
+		echo ""; \
+		echo "🚀 Now run: make macos-fast"; \
+	else \
+		echo "❌ .env.macos file not found!"; \
+		exit 1; \
+	fi
+
+# Check macOS Docker performance
+macos-performance:
+	@echo "🍎 macOS Docker Performance Check:"
+	@echo ""
+	@echo "📊 Docker Desktop Status:"
+	@docker system df
+	@echo ""
+	@echo "💾 Memory Usage:"
+	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+	@echo ""
+	@echo "💡 Performance Tips:"
+	@echo "  • Increase Docker Desktop memory allocation to 4GB+"
+	@echo "  • Enable 'Use gRPC FUSE for file sharing' in Docker Desktop"
+	@echo "  • Use 'make macos-config && make macos-fast' for best performance"
+	@echo "  • Consider using Colima instead of Docker Desktop"
+	@echo "  • Use 'make macos-minimal' for fastest development setup"
+
+# Clean up and optimize for macOS
+macos-clean:
+	@echo "🍎 Cleaning up Docker for macOS optimization..."
+	@docker compose down -v --remove-orphans
+	@docker system prune -f --volumes
+	@docker builder prune -f
+	@echo "✅ macOS Docker cleanup complete!"
+	@echo ""
+	@echo "💡 Next steps:"
+	@echo "  • Restart Docker Desktop"
+	@echo "  • Run 'make macos-fast' for optimized startup"
