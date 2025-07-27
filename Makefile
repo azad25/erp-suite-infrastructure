@@ -13,11 +13,13 @@ help:
 	@echo "Essential Commands:"
 	@echo "  start-dev            - Start development infrastructure with sequential startup"
 	@echo "  start                - Start all services"
-	@echo "  stop                 - Stop all services"
+	@echo "  stop                 - Stop all services and free ports"
+	@echo "  force-stop           - Force stop with aggressive cleanup (kills ALL Docker containers)"
 	@echo "  reload SERVICE=name  - Reload specific service (e.g., make reload SERVICE=postgres)"
 	@echo "  logs                 - Show logs from all services"
 	@echo "  logs APP=name        - Show logs from specific app (e.g., make logs APP=postgres)"
 	@echo "  services             - Show running services status"
+	@echo "  status               - Quick status check of all services"
 	@echo ""
 	@echo "macOS Optimization Commands:"
 	@echo "  macos-config         - Switch to macOS-optimized configuration"
@@ -280,11 +282,89 @@ start: prepare-environment
 	@echo "✅ All services started!"
 	@$(MAKE) print-info
 
-# Stop all services
+# Stop all services and free ports
 stop:
 	@echo "🛑 Stopping ERP Suite infrastructure..."
-	@docker compose down --remove-orphans || docker compose down
-	@echo "✅ All services stopped!"
+	@echo "📋 Stopping all Docker Compose services..."
+	@docker compose down --remove-orphans --volumes --timeout 30 2>/dev/null || true
+	@echo "🔍 Killing any remaining ERP Suite containers..."
+	@docker ps -a --filter "name=erp-suite" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
+	@echo "🧹 Cleaning up orphaned containers..."
+	@docker container prune -f 2>/dev/null || true
+	@echo "🌐 Cleaning up unused networks..."
+	@docker network prune -f 2>/dev/null || true
+	@echo "🔍 Checking for processes still using ERP ports..."
+	@OS=$$(uname); \
+	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	killed_processes=0; \
+	for port in $$ports; do \
+		if [ "$$OS" = "Darwin" ]; then \
+			pids=$$(lsof -ti :$$port 2>/dev/null || true); \
+		elif [ "$$OS" = "Linux" ]; then \
+			pids=$$(ss -tlnp | grep ":$$port " | sed 's/.*pid=\([0-9]*\).*/\1/' 2>/dev/null || true); \
+		fi; \
+		if [ -n "$$pids" ]; then \
+			echo "⚠️  Found processes using port $$port: $$pids"; \
+			for pid in $$pids; do \
+				if ps -p $$pid > /dev/null 2>&1; then \
+					echo "🔪 Killing process $$pid on port $$port"; \
+					kill -9 $$pid 2>/dev/null || true; \
+					killed_processes=$$((killed_processes + 1)); \
+				fi; \
+			done; \
+		fi; \
+	done; \
+	if [ $$killed_processes -gt 0 ]; then \
+		echo "⚡ Killed $$killed_processes processes"; \
+		sleep 2; \
+	fi
+	@echo "🔍 Final port check..."
+	@OS=$$(uname); \
+	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	still_in_use=0; \
+	for port in $$ports; do \
+		port_in_use=false; \
+		if [ "$$OS" = "Darwin" ]; then \
+			if lsof -i :$$port > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		elif [ "$$OS" = "Linux" ]; then \
+			if ss -tuln | grep ":$$port " > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		fi; \
+		if [ "$$port_in_use" = "true" ]; then \
+			echo "⚠️  Port $$port is still in use"; \
+			still_in_use=$$((still_in_use + 1)); \
+		fi; \
+	done; \
+	if [ $$still_in_use -eq 0 ]; then \
+		echo "✅ All ERP Suite ports are now free!"; \
+	else \
+		echo "⚠️  $$still_in_use ports are still in use (may be system services)"; \
+	fi
+	@echo "✅ ERP Suite infrastructure stopped and ports freed!"
+
+# Force stop with aggressive cleanup
+force-stop:
+	@echo "💥 Force stopping ERP Suite infrastructure with aggressive cleanup..."
+	@echo "⚠️  This will kill ALL Docker containers and clean up everything!"
+	@read -p "Are you sure? This will stop ALL Docker containers (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "🔥 Stopping all Docker containers..."; \
+		docker stop $$(docker ps -q) 2>/dev/null || true; \
+		echo "🗑️  Removing all Docker containers..."; \
+		docker rm -f $$(docker ps -aq) 2>/dev/null || true; \
+		echo "🌐 Removing all Docker networks..."; \
+		docker network rm $$(docker network ls -q) 2>/dev/null || true; \
+		echo "💾 Removing all Docker volumes..."; \
+		docker volume rm $$(docker volume ls -q) 2>/dev/null || true; \
+		echo "🧹 Pruning Docker system..."; \
+		docker system prune -af --volumes 2>/dev/null || true; \
+		echo "✅ Aggressive cleanup complete!"; \
+	else \
+		echo "❌ Force stop cancelled"; \
+	fi
 
 # Reload specific service
 reload:
@@ -339,7 +419,59 @@ services:
 	@printf "Kafka: "
 	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "Elasticsearch: "
-	@curl -s -u elastic:password http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@curl -s http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+
+# Quick status check
+status:
+	@echo "🔍 ERP Suite Infrastructure Status"
+	@echo "=================================="
+	@echo ""
+	@echo "📊 Container Status:"
+	@containers=$$(docker ps --filter "name=erp-suite" --format "{{.Names}}" 2>/dev/null || true); \
+	if [ -z "$$containers" ]; then \
+		echo "❌ No ERP Suite containers running"; \
+	else \
+		for container in $$containers; do \
+			status=$$(docker inspect --format='{{.State.Status}}' $$container 2>/dev/null || echo "unknown"); \
+			health=$$(docker inspect --format='{{.State.Health.Status}}' $$container 2>/dev/null || echo "none"); \
+			if [ "$$status" = "running" ]; then \
+				if [ "$$health" = "healthy" ]; then \
+					echo "✅ $$container: running (healthy)"; \
+				elif [ "$$health" = "unhealthy" ]; then \
+					echo "⚠️  $$container: running (unhealthy)"; \
+				elif [ "$$health" = "starting" ]; then \
+					echo "🔄 $$container: running (starting)"; \
+				else \
+					echo "🟡 $$container: running (no health check)"; \
+				fi; \
+			else \
+				echo "❌ $$container: $$status"; \
+			fi; \
+		done; \
+	fi
+	@echo ""
+	@echo "🌐 Port Status:"
+	@OS=$$(uname); \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket"; \
+	for port_info in $$ports; do \
+		port=$$(echo $$port_info | cut -d: -f1); \
+		service=$$(echo $$port_info | cut -d: -f2); \
+		port_in_use=false; \
+		if [ "$$OS" = "Darwin" ]; then \
+			if lsof -i :$$port > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		elif [ "$$OS" = "Linux" ]; then \
+			if ss -tuln | grep ":$$port " > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		fi; \
+		if [ "$$port_in_use" = "true" ]; then \
+			echo "✅ Port $$port ($$service): in use"; \
+		else \
+			echo "❌ Port $$port ($$service): free"; \
+		fi; \
+	done
 
 # Print service information
 print-info:

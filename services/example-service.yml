@@ -1,0 +1,18 @@
+  crm-service:
+    build:
+      context: ../erp-crm-service
+      dockerfile: Dockerfile
+    container_name: erp-suite-crm-service
+    environment:
+      PORT: 8082
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/erp_crm
+      REDIS_URL: redis://:redispassword@redis:6379/0
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - erp-network
+    profiles:
+      - full-stack

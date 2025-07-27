@@ -7,14 +7,14 @@
 ![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-000?style=for-the-badge&logo=apachekafka)
 ![ElasticSearch](https://img.shields.io/badge/-ElasticSearch-005571?style=for-the-badge&logo=elasticsearch)
 
-Complete infrastructure setup for the ERP Suite development environment with **sequential startup**, **dependency management**, and **cross-platform compatibility**.
+Complete infrastructure setup for the ERP Suite development environment with sequential startup, dependency management, and cross-platform compatibility.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- **Docker Desktop** (Windows/macOS) or **Docker Engine** (Linux)
-- **Docker Compose** v2.0+
-- **Make** utility
+- Docker Desktop (Windows/macOS) or Docker Engine (Linux)
+- Docker Compose v2.0+
+- Make utility
 
 ### Essential Commands
 
@@ -22,11 +22,14 @@ Complete infrastructure setup for the ERP Suite development environment with **s
 # Start development infrastructure (recommended)
 make start-dev
 
-# Start all services (faster startup)
+# Start all services
 make start
 
-# Stop all services
+# Stop all services and free ports
 make stop
+
+# Quick status check
+make status
 
 # Reload specific service with dependencies
 make reload SERVICE=postgres
@@ -41,7 +44,7 @@ make logs APP=postgres
 make services
 ```
 
-## 🏗️ Infrastructure Services
+## Infrastructure Services
 
 ### Core Services
 - **PostgreSQL 15+** - Primary relational database
@@ -63,9 +66,9 @@ make services
 - **Kafka UI** - Kafka management
 - **Kibana** - Elasticsearch visualization
 
-## 📋 Verified Service URLs & Endpoints
+## Service Endpoints
 
-### **🚪 API Layer**
+### API Layer
 | Service | Port | URL | Credentials |
 |---------|------|-----|-------------|
 | GraphQL Gateway | 4000 | http://localhost:4000/graphql | - |
@@ -73,7 +76,7 @@ make services
 | gRPC Registry (Consul) | 8500 | http://localhost:8500 | - |
 | WebSocket Server | 3001 | http://localhost:3001 | - |
 
-### **🏗️ Infrastructure Services**
+### Infrastructure Services
 | Service | Port | URL/Connection | Credentials |
 |---------|------|----------------|-------------|
 | PostgreSQL | 5432 | localhost:5432 | postgres/postgres |
@@ -81,31 +84,23 @@ make services
 | Redis | 6379 | localhost:6379 | password: redispassword |
 | Qdrant (HTTP) | 6333 | http://localhost:6333 | - |
 | Qdrant (gRPC) | 6334 | grpc://localhost:6334 | - |
-| **Kafka** | **9092** | localhost:9092 | - |
-| Elasticsearch | 9200 | http://localhost:9200 | elastic/password |
+| Kafka | 9092 | localhost:9092 | - |
+| Elasticsearch | 9200 | http://localhost:9200 | No auth required |
 
-### **🔧 Development Tools**
+### Development Tools
 | Service | Port | URL | Credentials |
 |---------|------|-----|-------------|
 | pgAdmin | 8081 | http://localhost:8081 | admin@erp.com/admin |
 | Mongo Express | 8082 | http://localhost:8082 | admin/pass |
 | Redis Commander | 8083 | http://localhost:8083 | - |
 | Kafka UI | 8084 | http://localhost:8084 | - |
-| Kibana | 5601 | http://localhost:5601 | elastic/password |
+| Kibana | 5601 | http://localhost:5601 | No auth required |
 
-### **⚡ Application Services (Full Stack)**
-| Service | Port | URL | Purpose |
-|---------|------|-----|---------|
-| Auth Service (HTTP) | 8080 | http://localhost:8080 | REST API |
-| Auth Service (gRPC) | 50051 | grpc://localhost:50051 | gRPC API |
-| Django Core | 8000 | http://localhost:8000 | Main API Gateway |
-| Next.js Frontend | 3000 | http://localhost:3000 | Web Application |
+## Sequential Startup System
 
-## � Seequential Startup System
+The `start-dev` command uses an 8-phase sequential startup to reduce resource load and ensure proper dependency management:
 
-The `start-dev` command uses an **8-phase sequential startup** to reduce resource load and ensure proper dependency management:
-
-### Phase-by-Phase Startup
+### Startup Phases
 1. **Phase 1**: Core Databases (PostgreSQL, Redis)
 2. **Phase 2**: Document & Vector Stores (MongoDB, Qdrant)
 3. **Phase 3**: Message Broker (Kafka)
@@ -116,37 +111,37 @@ The `start-dev` command uses an **8-phase sequential startup** to reduce resourc
 8. **Phase 8**: Development Tools
 
 ### Benefits
-- ✅ **Reduced resource contention** during startup
-- ✅ **Proper dependency ordering** ensures stability
-- ✅ **Better error isolation** and debugging
-- ✅ **Optimized for macOS** Docker performance
-- ✅ **Automatic health checks** between phases
+- Reduced resource contention during startup
+- Proper dependency ordering ensures stability
+- Better error isolation and debugging
+- Optimized for macOS Docker performance
+- Automatic health checks between phases
 
-## 🌍 Cross-Platform Compatibility
+## Cross-Platform Compatibility
 
 ### Supported Operating Systems
 
-#### 🪟 **Windows**
-- **Git Bash/WSL**: ✅ Full compatibility
-- **PowerShell**: ✅ Works with Docker Desktop
-- **Port checking**: Uses `netstat` (native Windows command)
+#### Windows
+- Git Bash/WSL: Full compatibility
+- PowerShell: Works with Docker Desktop
+- Port checking: Uses `netstat`
 
-#### 🐧 **Linux**
-- **Ubuntu/Debian/CentOS/Arch**: ✅ Full compatibility
-- **Port checking**: Multiple fallbacks (`lsof`, `netstat`, `ss`)
+#### Linux
+- Ubuntu/Debian/CentOS/Arch: Full compatibility
+- Port checking: Multiple fallbacks (`lsof`, `netstat`, `ss`)
 
-#### 🍎 **macOS**
-- **Terminal/Zsh**: ✅ Full compatibility + optimizations
-- **Port checking**: Uses `lsof` (native macOS command)
-- **Special optimizations**: Resource limits and sequential startup
+#### macOS
+- Terminal/Zsh: Full compatibility with optimizations
+- Port checking: Uses `lsof`
+- Special optimizations: Resource limits and sequential startup
 
 ### Cross-Platform Features
-- **Automatic OS detection** and command adaptation
-- **Universal Docker commands** work identically across platforms
-- **Smart port conflict detection** with OS-specific tools
-- **Platform-specific troubleshooting** guidance
+- Automatic OS detection and command adaptation
+- Universal Docker commands work identically across platforms
+- Smart port conflict detection with OS-specific tools
+- Platform-specific troubleshooting guidance
 
-## 🍎 macOS Optimizations
+## macOS Optimizations
 
 ### Special Commands for macOS
 ```bash
@@ -166,43 +161,15 @@ make macos-clean
 - Use `make start-dev` for optimized sequential startup
 - Consider using Colima instead of Docker Desktop
 
-## 🔧 Environment Setup & Configuration
+## Environment Configuration
 
-### **Automatic Environment Setup (Recommended)**
+### Automatic Environment Setup
 ```bash
-# No manual setup needed - everything is automatic!
+# No manual setup needed - everything is automatic
 make start-dev
 ```
 
-### **Available Environment Setup Commands**
-
-#### **1. Basic Environment Setup (Automatic)**
-```bash
-# This is called automatically by start-dev and start
-make start-dev  # Includes prepare-environment
-make start      # Includes prepare-environment
-```
-
-#### **2. Manual Environment Setup**
-```bash
-# Manually run environment preparation
-make prepare-environment
-```
-
-#### **3. macOS Optimized Environment**
-```bash
-# Switch to macOS-optimized configuration
-make macos-config
-
-# This switches from .env.example to .env.macos with:
-# - Reduced Elasticsearch memory (256MB instead of 512MB)
-# - Optimized Kafka memory usage
-# - Reduced health check frequency
-# - Disabled optional services by default
-# - Set log level to 'warn' to reduce I/O
-```
-
-### **Available Environment Files**
+### Available Environment Files
 
 | File | Purpose | Usage |
 |------|---------|-------|
@@ -210,36 +177,15 @@ make macos-config
 | `.env.macos` | macOS-optimized settings | Use `make macos-config` to activate |
 | `.env` | Active configuration | Created automatically or manually |
 
-### **What Gets Set Up Automatically**
-
-When you run `make start-dev` or `make start`, the system creates:
-
-#### **Main Configuration:**
-- ✅ `.env` (from `.env.example`)
-
-#### **Service-Specific Configurations:**
-- ✅ `websocket-server/.env` (from example)
-- ✅ `graphql-gateway/.env` (from example)
-- ✅ `config/prometheus.yml` (from example)
-- ✅ `config/pgadmin/servers.json` (from example)
-
-#### **Required Directories:**
-- ✅ `config/grafana/provisioning/datasources`
-- ✅ `config/grafana/provisioning/dashboards`
-- ✅ `websocket-server`
-- ✅ `graphql-gateway/src`
-- ✅ `backups`
-
-### **Key Environment Variables You Can Customize**
+### Key Environment Variables
 
 ```bash
 # Database Configuration
 POSTGRES_PASSWORD=your_secure_password
 MONGODB_ROOT_PASSWORD=your_mongo_password
 REDIS_PASSWORD=your_redis_password
-ELASTIC_PASSWORD=your_elastic_password
 
-# Service Ports (if you have conflicts)
+# Service Ports
 POSTGRES_PORT=5432
 MONGODB_PORT=27017
 REDIS_PORT=6379
@@ -259,92 +205,133 @@ KAFKA_UI_PORT=8084
 KIBANA_PORT=5601
 ```
 
-## 🔄 Service Management
+## Service Management
 
-### **How to Reload a Service**
+### Service Reload
 
 ```bash
 # Basic syntax
 make reload SERVICE=service-name
 
-# Examples:
+# Examples
 make reload SERVICE=postgres
 make reload SERVICE=redis
-make reload SERVICE=kafka
-make reload SERVICE=mongodb
 make reload SERVICE=elasticsearch
-make reload SERVICE=graphql-gateway
-make reload SERVICE=websocket-server
 ```
 
-### **Smart Dependency Management**
+### Smart Dependency Management
 
 The `reload` command automatically restarts dependent services:
 
-#### **PostgreSQL Reload:**
+| Service | Dependents |
+|---------|------------|
+| postgres | GraphQL Gateway, pgAdmin |
+| redis | GraphQL Gateway, WebSocket Server, Redis Commander |
+| mongodb | Mongo Express |
+| elasticsearch | Kibana |
+| kafka | Kafka UI |
+
+### Available Service Names
+
+| Service Name | Description |
+|--------------|-------------|
+| `postgres` | PostgreSQL database |
+| `redis` | Redis cache |
+| `mongodb` | MongoDB database |
+| `kafka` | Kafka message broker |
+| `elasticsearch` | Elasticsearch search |
+| `qdrant` | Qdrant vector database |
+| `graphql-gateway` | GraphQL API gateway |
+| `grpc-registry` | gRPC service registry |
+| `websocket-server` | WebSocket server |
+| `kibana` | Kibana UI |
+| `pgadmin` | pgAdmin UI |
+| `mongo-express` | Mongo Express UI |
+| `redis-commander` | Redis Commander UI |
+| `kafka-ui` | Kafka UI |
+
+## Service Creation
+
+### Quick Service Creation
+
+Create new microservices with the automated service generator:
+
 ```bash
-make reload SERVICE=postgres
-```
-**Also restarts:** GraphQL Gateway, pgAdmin
+# Basic syntax
+./create-service.sh <port> <service-name> <language>
 
-#### **Redis Reload:**
-```bash
-make reload SERVICE=redis
-```
-**Also restarts:** GraphQL Gateway, WebSocket Server, Redis Commander
-
-#### **MongoDB Reload:**
-```bash
-make reload SERVICE=mongodb
-```
-**Also restarts:** Mongo Express
-
-#### **Elasticsearch Reload:**
-```bash
-make reload SERVICE=elasticsearch
-```
-**Also restarts:** Kibana
-
-#### **Kafka Reload:**
-```bash
-make reload SERVICE=kafka
-```
-**Also restarts:** Kafka UI
-
-### **Available Service Names for Reload**
-
-| Service Name | Description | Dependents |
-|--------------|-------------|------------|
-| `postgres` | PostgreSQL database | GraphQL Gateway, pgAdmin |
-| `redis` | Redis cache | GraphQL Gateway, WebSocket Server, Redis Commander |
-| `mongodb` | MongoDB database | Mongo Express |
-| `kafka` | Kafka message broker | Kafka UI |
-| `elasticsearch` | Elasticsearch search | Kibana |
-| `qdrant` | Qdrant vector database | - |
-| `graphql-gateway` | GraphQL API gateway | - |
-| `grpc-registry` | gRPC service registry | - |
-| `websocket-server` | WebSocket server | - |
-| `kibana` | Kibana UI | - |
-| `pgadmin` | pgAdmin UI | - |
-| `mongo-express` | Mongo Express UI | - |
-| `redis-commander` | Redis Commander UI | - |
-| `kafka-ui` | Kafka UI | - |
-
-### Logging and Monitoring
-```bash
-# View all service logs
-make logs
-
-# View specific service logs
-make logs APP=postgres
-make logs APP=graphql-gateway
-make logs APP=kafka
-
-# Check service status and health
-make services
+# Examples
+./create-service.sh 8082 crm go          # Go CRM service
+./create-service.sh 8083 hrm python      # Python HRM service  
+./create-service.sh 8084 inventory node  # Node.js Inventory service
 ```
 
-## 🏗️ Architecture Overview
+### Supported Languages & Frameworks
+
+| Language | Framework | Database | Cache | Generated File |
+|----------|-----------|----------|-------|----------------|
+| Go | Gin | lib/pq (PostgreSQL) | go-redis | `main.go` |
+| Python | FastAPI | psycopg2 (PostgreSQL) | redis-py | `main.py` |
+| Node.js | Express | pg (PostgreSQL) | redis | `server.js` |
+
+### Database Configuration Options
+
+When creating a service, choose from:
+
+1. **Use existing database** - Uses `erp_servicename` database
+2. **Create new database** - Creates a new `erp_servicename` database  
+3. **Use shared database** - Uses the shared `erp_core` database
+
+### Generated Service Structure
+
+```
+erp-servicename-service/
+├── main.go|main.py|server.js    # Main application file
+├── Dockerfile                   # Container configuration
+├── .env                        # Environment variables
+├── README.md                   # Service documentation
+├── go.mod|requirements.txt|package.json  # Dependencies
+└── .git/                       # Git repository
+```
+
+### Auto-Generated API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check endpoint |
+| `GET` | `/api/v1/servicename` | List all items |
+| `POST` | `/api/v1/servicename` | Create new item |
+| `GET` | `/api/v1/servicename/:id` | Get item by ID |
+| `PUT` | `/api/v1/servicename/:id` | Update item |
+| `DELETE` | `/api/v1/servicename/:id` | Delete item |
+
+### Service Creation Workflow
+
+#### Step 1: Create the Service
+```bash
+cd erp-suit-infrastructure
+./create-service.sh 8085 finance go
+```
+
+#### Step 2: Start Infrastructure
+```bash
+make start-dev
+make status
+```
+
+#### Step 3: Start Your Service
+```bash
+docker compose up -d finance-service
+make logs APP=finance-service
+```
+
+#### Step 4: Test Your Service
+```bash
+curl http://localhost:8085/health
+curl http://localhost:8085/api/v1/finance
+```
+
+## Architecture Overview
 
 ```mermaid
 graph TB
@@ -381,46 +368,30 @@ graph TB
     KAFKAUI --> KAFKA
 ```
 
-## 🚀 Development Workflow
+## Development Workflow
 
 ### For New Module Development
 ```bash
 # 1. Start infrastructure
 make start-dev
 
-# 2. Check all services are running
+# 2. Create your service
+./create-service.sh 8085 finance go
+
+# 3. Start your service
+docker compose up -d finance-service
+
+# 4. Check all services are running
 make services
 
-# 3. Connect your module to:
-# - PostgreSQL: localhost:5432
-# - Redis: localhost:6379  
-# - Kafka: localhost:9092
-# - MongoDB: localhost:27017
-# - Elasticsearch: localhost:9200
-
-# 4. Use development tools:
+# 5. Use development tools:
 # - pgAdmin: http://localhost:8081
 # - GraphQL Playground: http://localhost:4000/playground
 ```
 
-### For Infrastructure Development
-```bash
-# Start specific service groups
-make start                    # All services
-make stop                     # Stop all services
+### Service Connection Examples
 
-# Monitor and debug
-make logs                     # All logs
-make logs APP=postgres        # Specific service
-make services                 # Status check
-
-# Reload services
-make reload SERVICE=redis     # Restart with dependencies
-```
-
-### **Service Connection Examples**
-
-#### **Database Connections:**
+#### Database Connections
 ```bash
 # PostgreSQL
 psql -h localhost -p 5432 -U postgres -d erp_system
@@ -432,34 +403,42 @@ mongosh mongodb://root:password@localhost:27017/erp_analytics
 redis-cli -h localhost -p 6379 -a redispassword
 ```
 
-#### **API Testing:**
+#### API Testing
 ```bash
 # GraphQL Health Check
 curl http://localhost:4000/health
 
 # Elasticsearch Health
-curl -u elastic:password http://localhost:9200/_cluster/health
+curl http://localhost:9200/_cluster/health
+
+# WebSocket Health Check
+curl http://localhost:3001/health
 
 # Consul Services
 curl http://localhost:8500/v1/catalog/services
 ```
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
-### **Common Issues and Solutions**
+### Common Issues and Solutions
 
-#### **1. Port Conflicts**
+#### Port Conflicts
 The system automatically checks for port conflicts before starting:
 ```bash
 # Manual port conflict check
 make check-ports
 
-# If conflicts found, kill processes:
-# Windows: netstat -ano | findstr :PORT
-# macOS/Linux: sudo lsof -ti:PORT | xargs kill -9
+# Enhanced stop command handles this automatically
+make stop
+
+# For aggressive cleanup
+make force-stop
+
+# Quick status check
+make status
 ```
 
-#### **2. Service Health Issues**
+#### Service Health Issues
 ```bash
 # Check service status
 make services
@@ -471,11 +450,11 @@ make logs APP=service-name
 make reload SERVICE=service-name
 ```
 
-#### **3. Kafka Topic Creation Taking Too Long**
+#### Kafka Topic Creation Issues
 If Kafka topic creation gets stuck:
 ```bash
 # Skip topic creation and start manually later
-make start  # Instead of start-dev
+make start
 
 # Check Kafka status
 make services
@@ -488,13 +467,7 @@ make kafka-topics
 make reload SERVICE=kafka
 ```
 
-#### **4. Docker Dependency Issues**
-If you see errors like "service depends on undefined service":
-- The infrastructure uses **sequential startup** instead of strict Docker dependencies
-- Services connect via environment variables and Docker networking
-- Dependencies are managed through the 8-phase startup process
-
-#### **5. macOS Performance Issues**
+#### macOS Performance Issues
 ```bash
 # Switch to macOS optimized configuration
 make macos-config
@@ -509,7 +482,7 @@ make macos-performance
 make macos-clean
 ```
 
-### **Docker Issues**
+### Docker Issues
 ```bash
 # Clean up Docker resources
 make macos-clean              # macOS-specific cleanup
@@ -517,7 +490,7 @@ docker system prune -f       # General cleanup
 docker compose down -v       # Stop and remove volumes
 ```
 
-### **Environment Issues**
+### Environment Issues
 ```bash
 # Reset environment configuration
 rm .env
@@ -530,112 +503,34 @@ cat .env
 make macos-config
 ```
 
-## 📚 Additional Resources
+## Summary
 
-### **Recommended Setup Workflows**
+This infrastructure provides a complete, production-ready development environment with:
 
-#### **For General Development:**
+- Sequential startup with dependency management
+- Cross-platform compatibility (Windows, macOS, Linux)
+- Simplified commands (`start-dev`, `start`, `stop`, `reload`, `logs`, `services`)
+- Automatic environment setup
+- Smart service reloading with dependency management
+- Comprehensive development tools
+- Automated service creation
+- Event-driven architecture ready for microservices
+
+### Get Started
+
 ```bash
-# 1. Basic setup (automatic)
+# Basic setup
 make start-dev
-```
 
-#### **For macOS Users (Recommended):**
-```bash
-# 1. Switch to macOS optimized config
-make macos-config
-
-# 2. Start with optimizations
-make start-dev
-```
-
-#### **For Custom Configuration:**
-```bash
-# 1. Copy example to create your own
-cp .env.example .env
-
-# 2. Edit the configuration
-vim .env
-
-# 3. Start infrastructure
-make start-dev
-```
-
-### **Pro Tips**
-
-#### **Quick Start (No Manual Setup Needed):**
-```bash
-# Just run this - everything is automatic!
-make start-dev
-```
-
-#### **For macOS Performance:**
-```bash
-# Optimize for macOS first, then start
+# For macOS users
 make macos-config
 make start-dev
+
+# Quick commands reference
+make start-dev    # Start with sequential startup (recommended)
+make status       # Quick status check
+make stop         # Enhanced stop with port cleanup
+make services     # Detailed health check
 ```
 
-#### **Check Your Configuration:**
-```bash
-# See what environment is active
-cat .env
-
-# Check if all required files exist
-ls -la .env*
-ls -la websocket-server/.env
-ls -la graphql-gateway/.env
-```
-
-#### **Reset Environment:**
-```bash
-# Remove current config and start fresh
-rm .env
-make start-dev  # Will recreate .env from .env.example
-```
-
-### Configuration Management
-- Environment variables in `.env` file
-- Service-specific configuration in `config/` directory
-- Docker Compose profiles for flexible service management
-
-### Monitoring and Observability
-- Service health checks with automatic restarts
-- Centralized logging via Docker Compose
-- Development tools for database and service management
-
-### Development Support
-- Hot reload support for development
-- Persistent volumes for data retention
-- Network isolation via Docker networks
-- Resource limits for optimal performance
-
----
-
-## 🎯 Summary
-
-This infrastructure provides a **complete, production-ready development environment** with:
-
-- ✅ **Sequential startup** with dependency management
-- ✅ **Cross-platform compatibility** (Windows, macOS, Linux)
-- ✅ **Simplified commands** (`start-dev`, `start`, `stop`, `reload`, `logs`, `services`)
-- ✅ **Automatic environment setup** - No manual configuration needed
-- ✅ **Smart service reloading** with dependency management
-- ✅ **Verified service URLs** and endpoints
-- ✅ **macOS optimizations** for Docker Desktop performance
-- ✅ **Comprehensive troubleshooting** guidance
-- ✅ **Development tools** for database and service management
-- ✅ **Event-driven architecture** ready for microservices
-
-### **Get started in seconds:**
-```bash
-make start-dev
-```
-
-### **For macOS users:**
-```bash
-make macos-config
-make start-dev
-```
-
-That's it! Your complete ERP infrastructure is ready for development with optimized performance, cross-platform compatibility, and intelligent dependency management. 🚀
+Your complete ERP infrastructure is ready for development with optimized performance, cross-platform compatibility, and intelligent dependency management.
