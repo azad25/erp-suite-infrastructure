@@ -1,0 +1,238 @@
+syntax = "proto3";
+
+package projects;
+
+// Project Service Definition
+service ProjectService {
+  // Project CRUD operations
+  rpc CreateProject(CreateProjectRequest) returns (ProjectResponse);
+  rpc GetProject(GetProjectRequest) returns (ProjectResponse);
+  rpc UpdateProject(UpdateProjectRequest) returns (ProjectResponse);
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteResponse);
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  
+  // Task operations
+  rpc CreateTask(CreateTaskRequest) returns (TaskResponse);
+  rpc GetTask(GetTaskRequest) returns (TaskResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (TaskResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  
+  // Time tracking
+  rpc LogTime(LogTimeRequest) returns (TimeEntryResponse);
+  rpc GetTimeEntries(GetTimeEntriesRequest) returns (ListTimeEntriesResponse);
+}
+
+// Common types
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+// Project messages
+message Project {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  ProjectStatus status = 4;
+  string client_id = 5;
+  string manager_id = 6;
+  Timestamp start_date = 7;
+  Timestamp end_date = 8;
+  double budget = 9;
+  repeated string team_members = 10;
+  Timestamp created_at = 11;
+  Timestamp updated_at = 12;
+}
+
+enum ProjectStatus {
+  PROJECT_STATUS_UNSPECIFIED = 0;
+  PROJECT_STATUS_PLANNING = 1;
+  PROJECT_STATUS_ACTIVE = 2;
+  PROJECT_STATUS_ON_HOLD = 3;
+  PROJECT_STATUS_COMPLETED = 4;
+  PROJECT_STATUS_CANCELLED = 5;
+}
+
+message CreateProjectRequest {
+  string name = 1;
+  string description = 2;
+  string client_id = 3;
+  string manager_id = 4;
+  Timestamp start_date = 5;
+  Timestamp end_date = 6;
+  double budget = 7;
+  repeated string team_members = 8;
+}
+
+message GetProjectRequest {
+  string id = 1;
+}
+
+message UpdateProjectRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  ProjectStatus status = 4;
+  string manager_id = 5;
+  Timestamp end_date = 6;
+  double budget = 7;
+  repeated string team_members = 8;
+}
+
+message DeleteProjectRequest {
+  string id = 1;
+}
+
+message ListProjectsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  string search = 3;
+  ProjectStatus status = 4;
+  string manager_id = 5;
+  string client_id = 6;
+}
+
+message ProjectResponse {
+  Project project = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ListProjectsResponse {
+  repeated Project projects = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+// Task messages
+message Task {
+  string id = 1;
+  string project_id = 2;
+  string title = 3;
+  string description = 4;
+  TaskStatus status = 5;
+  TaskPriority priority = 6;
+  string assignee_id = 7;
+  Timestamp due_date = 8;
+  int32 estimated_hours = 9;
+  int32 actual_hours = 10;
+  repeated string dependencies = 11;
+  Timestamp created_at = 12;
+  Timestamp updated_at = 13;
+}
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_TODO = 1;
+  TASK_STATUS_IN_PROGRESS = 2;
+  TASK_STATUS_REVIEW = 3;
+  TASK_STATUS_DONE = 4;
+  TASK_STATUS_BLOCKED = 5;
+}
+
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_LOW = 1;
+  TASK_PRIORITY_MEDIUM = 2;
+  TASK_PRIORITY_HIGH = 3;
+  TASK_PRIORITY_URGENT = 4;
+}
+
+message CreateTaskRequest {
+  string project_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskPriority priority = 4;
+  string assignee_id = 5;
+  Timestamp due_date = 6;
+  int32 estimated_hours = 7;
+  repeated string dependencies = 8;
+}
+
+message GetTaskRequest {
+  string id = 1;
+}
+
+message UpdateTaskRequest {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  TaskStatus status = 4;
+  TaskPriority priority = 5;
+  string assignee_id = 6;
+  Timestamp due_date = 7;
+  int32 estimated_hours = 8;
+  int32 actual_hours = 9;
+}
+
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+message ListTasksRequest {
+  string project_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  TaskStatus status = 4;
+  string assignee_id = 5;
+  TaskPriority priority = 6;
+}
+
+message TaskResponse {
+  Task task = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+// Time tracking messages
+message TimeEntry {
+  string id = 1;
+  string task_id = 2;
+  string user_id = 3;
+  string description = 4;
+  int32 hours = 5;
+  Timestamp date = 6;
+  Timestamp created_at = 7;
+}
+
+message LogTimeRequest {
+  string task_id = 1;
+  string user_id = 2;
+  string description = 3;
+  int32 hours = 4;
+  Timestamp date = 5;
+}
+
+message GetTimeEntriesRequest {
+  string task_id = 1;
+  string user_id = 2;
+  Timestamp date_from = 3;
+  Timestamp date_to = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message TimeEntryResponse {
+  TimeEntry time_entry = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+message ListTimeEntriesResponse {
+  repeated TimeEntry time_entries = 1;
+  int32 total_count = 2;
+  bool has_next_page = 3;
+}
+
+// Common response
+message DeleteResponse {
+  bool success = 1;
+  string message = 2;
+}

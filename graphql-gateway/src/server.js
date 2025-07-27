@@ -15,15 +15,20 @@ const { shield, rule, and, or } = require('graphql-shield');
 const pino = require('pino');
 
 // Import GraphQL schema and resolvers
-const typeDefs = require('./schema');
-const resolvers = require('./resolvers');
-const { createDataLoaders } = require('./dataloaders');
-const { createGrpcClients } = require('./grpc-clients');
+const typeDefs = require('./schema-minimal');
+const resolvers = require('./resolvers-minimal');
+// const { createDataLoaders } = require('./dataloaders');
+// const { createGrpcClients } = require('./grpc-clients');
 
 // Logger setup
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
-  prettyPrint: process.env.NODE_ENV === 'development'
+  transport: process.env.NODE_ENV === 'development' ? {
+    target: 'pino-pretty',
+    options: {
+      colorize: true
+    }
+  } : undefined
 });
 
 // Redis setup for caching and subscriptions
@@ -35,7 +40,7 @@ const pubsub = new RedisPubSub({
 
 async function startServer() {
   const app = express();
-  
+
   // Security middleware
   app.use(helmet({
     contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
@@ -48,9 +53,10 @@ async function startServer() {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   });
 
-  // Initialize gRPC clients
-  const grpcClients = await createGrpcClients();
-  
+  // Initialize gRPC clients (disabled for minimal setup)
+  // const grpcClients = await createGrpcClients();
+  const grpcClients = {};
+
   // Create executable schema
   const schema = makeExecutableSchema({
     typeDefs,
@@ -71,16 +77,16 @@ async function startServer() {
           logger
         };
       }
-      
+
       // HTTP request context
-      const dataLoaders = createDataLoaders(grpcClients, redis);
-      
+      // const dataLoaders = createDataLoaders(grpcClients, redis);
+
       return {
         req,
         pubsub,
         redis,
         grpcClients,
-        dataLoaders,
+        // dataLoaders,
         logger,
         user: req.user // Set by auth middleware
       };
@@ -91,22 +97,31 @@ async function startServer() {
         requestDidStart() {
           return {
             didResolveOperation({ request, document }) {
-              const complexity = costAnalysis.getComplexity({
-                estimators: [
-                  costAnalysis.fieldExtensionsEstimator(),
-                  costAnalysis.simpleEstimator({ defaultComplexity: 1 })
-                ],
-                maximumComplexity: 1000,
-                variables: request.variables,
-                document,
-                schema
-              });
-              
-              if (complexity > 1000) {
-                throw new Error(`Query complexity ${complexity} exceeds maximum allowed complexity of 1000`);
+              if (!document) {
+                logger.warn('Document is undefined, skipping complexity analysis');
+                return;
               }
-              
-              logger.info({ complexity }, 'Query complexity calculated');
+
+              try {
+                const complexity = costAnalysis.getComplexity({
+                  estimators: [
+                    costAnalysis.fieldExtensionsEstimator(),
+                    costAnalysis.simpleEstimator({ defaultComplexity: 1 })
+                  ],
+                  maximumComplexity: 1000,
+                  variables: request.variables,
+                  document,
+                  schema
+                });
+
+                if (complexity > 1000) {
+                  throw new Error(`Query complexity ${complexity} exceeds maximum allowed complexity of 1000`);
+                }
+
+                logger.info({ complexity }, 'Query complexity calculated');
+              } catch (error) {
+                logger.error({ error: error.message }, 'Query complexity analysis failed');
+              }
             }
           };
         }
@@ -121,7 +136,7 @@ async function startServer() {
                 query: request.query,
                 variables: request.variables,
                 operationName: request.operationName,
-                duration: response.http.body.extensions?.tracing?.duration
+                duration: response.http?.body?.extensions?.tracing?.duration
               }, 'GraphQL request completed');
             }
           };
@@ -149,7 +164,7 @@ async function startServer() {
   server.applyMiddleware({ app, path: '/graphql' });
 
   const httpServer = createServer(app);
-  
+
   // WebSocket server for subscriptions
   const subscriptionServer = SubscriptionServer.create({
     schema,
@@ -173,7 +188,7 @@ async function startServer() {
   });
 
   const PORT = process.env.PORT || 4000;
-  
+
   httpServer.listen(PORT, () => {
     logger.info({
       port: PORT,

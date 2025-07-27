@@ -1,7 +1,11 @@
 const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 const path = require('path');
-const consul = require('consul')();
+const consul = require('consul')({
+  host: process.env.CONSUL_HOST || 'grpc-registry',
+  port: process.env.CONSUL_PORT || 8500,
+  promisify: true
+});
 
 // gRPC client configuration
 const GRPC_OPTIONS = {
@@ -22,31 +26,37 @@ const GRPC_OPTIONS = {
 const SERVICES = {
   auth: {
     protoPath: path.join(__dirname, '../proto/auth.proto'),
+    packageName: 'auth',
     serviceName: 'AuthService',
     defaultAddress: process.env.GRPC_AUTH_SERVICE || 'auth-service:50051'
   },
   crm: {
     protoPath: path.join(__dirname, '../proto/crm.proto'),
+    packageName: 'crm',
     serviceName: 'CRMService',
     defaultAddress: process.env.GRPC_CRM_SERVICE || 'crm-service:50052'
   },
   hrm: {
     protoPath: path.join(__dirname, '../proto/hrm.proto'),
+    packageName: 'hrm',
     serviceName: 'HRMService',
     defaultAddress: process.env.GRPC_HRM_SERVICE || 'hrm-service:50053'
   },
   finance: {
     protoPath: path.join(__dirname, '../proto/finance.proto'),
+    packageName: 'finance',
     serviceName: 'FinanceService',
     defaultAddress: process.env.GRPC_FINANCE_SERVICE || 'finance-service:50054'
   },
   inventory: {
     protoPath: path.join(__dirname, '../proto/inventory.proto'),
+    packageName: 'inventory',
     serviceName: 'InventoryService',
     defaultAddress: process.env.GRPC_INVENTORY_SERVICE || 'inventory-service:50055'
   },
   projects: {
     protoPath: path.join(__dirname, '../proto/projects.proto'),
+    packageName: 'projects',
     serviceName: 'ProjectService',
     defaultAddress: process.env.GRPC_PROJECT_SERVICE || 'project-service:50056'
   }
@@ -64,8 +74,8 @@ class GrpcClientManager {
       await this.createClient(serviceName, config);
     }
     
-    // Start health checking
-    this.startHealthChecking();
+    // Start health checking (disabled for infrastructure-only mode)
+    // this.startHealthChecking();
     
     return this.clients;
   }
@@ -80,7 +90,29 @@ class GrpcClientManager {
       const serviceAddress = await this.getServiceAddress(serviceName, config.defaultAddress);
       
       // Create gRPC client with connection pooling
-      const ServiceClient = protoDescriptor[config.serviceName];
+      // Access the service client using the package structure
+      let ServiceClient;
+      if (protoDescriptor[config.packageName] && protoDescriptor[config.packageName][config.serviceName]) {
+        ServiceClient = protoDescriptor[config.packageName][config.serviceName];
+      } else if (protoDescriptor[config.serviceName]) {
+        ServiceClient = protoDescriptor[config.serviceName];
+      } else {
+        // Fallback: try to find the service in any available package
+        const availablePackages = Object.keys(protoDescriptor);
+        console.log(`Available packages for ${serviceName}:`, availablePackages);
+        
+        for (const packageName of availablePackages) {
+          if (protoDescriptor[packageName][config.serviceName]) {
+            ServiceClient = protoDescriptor[packageName][config.serviceName];
+            break;
+          }
+        }
+        
+        if (!ServiceClient) {
+          throw new Error(`Service ${config.serviceName} not found in proto definition. Available packages: ${availablePackages.join(', ')}`);
+        }
+      }
+      
       const client = new ServiceClient(serviceAddress, grpc.credentials.createInsecure(), {
         'grpc.max_connection_idle_ms': 300000,
         'grpc.max_connection_age_ms': 600000,
@@ -103,18 +135,24 @@ class GrpcClientManager {
 
   async getServiceAddress(serviceName, defaultAddress) {
     try {
-      // Try service discovery first
-      const services = await consul.health.service({
-        service: `erp-${serviceName}-service`,
-        passing: true
-      });
+      // Try service discovery first with timeout
+      const services = await Promise.race([
+        consul.health.service({
+          service: `erp-${serviceName}-service`,
+          passing: true
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Service discovery timeout')), 5000)
+        )
+      ]);
       
-      if (services.length > 0) {
+      if (services && services.length > 0) {
         const service = services[Math.floor(Math.random() * services.length)];
+        console.log(`✅ Service discovery found ${serviceName} at ${service.Service.Address}:${service.Service.Port}`);
         return `${service.Service.Address}:${service.Service.Port}`;
       }
     } catch (error) {
-      console.warn(`Service discovery failed for ${serviceName}, using default address`);
+      console.warn(`Service discovery failed for ${serviceName}, using default address:`, error.message);
     }
     
     return defaultAddress;

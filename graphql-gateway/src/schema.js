@@ -141,6 +141,7 @@ const typeDefs = gql`
     expectedCloseDate: DateTime
     notes: String
     createdAt: DateTime!
+    updatedAt: DateTime!
     
     # Relationships
     contact: Contact!
@@ -196,11 +197,55 @@ const typeDefs = gql`
     hireDate: DateTime!
     salary: Float
     status: EmployeeStatus!
+    createdAt: DateTime!
+    updatedAt: DateTime!
     
     # Relationships
     leaves: [Leave!]!
     timesheets: [Timesheet!]!
     performance: [PerformanceReview!]!
+  }
+
+  type Timesheet {
+    id: ID!
+    date: DateTime!
+    hoursWorked: Float!
+    description: String
+    status: TimesheetStatus!
+    submittedAt: DateTime
+    approvedAt: DateTime
+    
+    employee: Employee!
+    approvedBy: Employee
+  }
+
+  enum TimesheetStatus {
+    DRAFT
+    SUBMITTED
+    APPROVED
+    REJECTED
+  }
+
+  type PerformanceReview {
+    id: ID!
+    reviewPeriod: String!
+    overallRating: Int!
+    goals: [String!]!
+    achievements: [String!]!
+    areasForImprovement: [String!]!
+    comments: String
+    status: ReviewStatus!
+    reviewDate: DateTime!
+    
+    employee: Employee!
+    reviewer: Employee!
+  }
+
+  enum ReviewStatus {
+    DRAFT
+    IN_PROGRESS
+    COMPLETED
+    APPROVED
   }
 
   type Department {
@@ -259,6 +304,8 @@ const typeDefs = gql`
     totalAmount: Float!
     currency: String!
     notes: String
+    createdAt: DateTime!
+    updatedAt: DateTime!
     
     # Relationships
     customer: Contact!
@@ -324,6 +371,8 @@ const typeDefs = gql`
     stockQuantity: Int!
     minStockLevel: Int!
     isActive: Boolean!
+    createdAt: DateTime!
+    updatedAt: DateTime!
     
     # Relationships
     supplier: Supplier

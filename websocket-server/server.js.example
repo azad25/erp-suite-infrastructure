@@ -4,6 +4,7 @@ const socketIo = require('socket.io');
 const redis = require('redis');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,7 +26,7 @@ const io = socketIo(server, {
 
 // Redis client setup
 const redisClient = redis.createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
+    url: process.env.REDIS_URL || 'redis://:redispassword@redis:6379'
 });
 
 redisClient.on('error', (err) => {
@@ -38,6 +39,63 @@ redisClient.on('connect', () => {
 
 // Connect to Redis
 redisClient.connect();
+
+// GraphQL Gateway integration
+const GRAPHQL_GATEWAY_URL = process.env.GRAPHQL_GATEWAY_URL || 'http://graphql-gateway:4000/graphql';
+
+// Redis Pub/Sub for GraphQL subscriptions
+const redisPub = redis.createClient({
+    url: process.env.REDIS_URL || 'redis://:redispassword@redis:6379'
+});
+
+const redisSub = redis.createClient({
+    url: process.env.REDIS_URL || 'redis://:redispassword@redis:6379'
+});
+
+redisPub.connect();
+redisSub.connect();
+
+// Subscribe to GraphQL subscription events
+const subscribeToGraphQLEvents = () => {
+    const channels = [
+        'graphql:activity_added',
+        'graphql:notification_received',
+        'graphql:dashboard_updated',
+        'graphql:invoice_status_changed',
+        'graphql:lead_updated'
+    ];
+    
+    channels.forEach(channel => {
+        redisSub.subscribe(channel, (message) => {
+            try {
+                const data = JSON.parse(message);
+                
+                // Route GraphQL subscription data to appropriate Socket.IO rooms
+                switch (channel) {
+                    case 'graphql:activity_added':
+                        io.to(`org:${data.organizationId}`).emit('activity_added', data);
+                        break;
+                    case 'graphql:notification_received':
+                        io.to(`user:${data.userId}`).emit('notification_received', data);
+                        break;
+                    case 'graphql:dashboard_updated':
+                        io.to(`org:${data.organizationId}`).emit('dashboard_updated', data);
+                        break;
+                    case 'graphql:invoice_status_changed':
+                        io.to(`org:${data.organizationId}`).emit('invoice_status_changed', data);
+                        break;
+                    case 'graphql:lead_updated':
+                        io.to(`org:${data.organizationId}`).emit('lead_updated', data);
+                        break;
+                }
+            } catch (error) {
+                console.error('Error processing GraphQL subscription:', error);
+            }
+        });
+    });
+};
+
+subscribeToGraphQLEvents();
 
 // JWT middleware for socket authentication
 const authenticateSocket = async (socket, next) => {
@@ -138,6 +196,41 @@ io.on('connection', (socket) => {
         // Store notification in Redis
         redisClient.lpush(`notifications:${data.to}`, JSON.stringify(notification));
         redisClient.ltrim(`notifications:${data.to}`, 0, 49); // Keep last 50 notifications
+    });
+    
+    // Handle GraphQL subscription requests
+    socket.on('graphql_subscribe', async (subscriptionData) => {
+        try {
+            const { query, variables, operationName } = subscriptionData;
+            
+            // Forward subscription to GraphQL Gateway
+            const response = await axios.post(GRAPHQL_GATEWAY_URL, {
+                query,
+                variables: {
+                    ...variables,
+                    userId: socket.userId,
+                    organizationId: socket.organizationId
+                },
+                operationName
+            }, {
+                headers: {
+                    'Authorization': `Bearer ${socket.token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.data.errors) {
+                socket.emit('graphql_error', { errors: response.data.errors });
+            } else {
+                socket.emit('graphql_subscribed', { 
+                    subscriptionId: Date.now(),
+                    data: response.data 
+                });
+            }
+        } catch (error) {
+            console.error('GraphQL subscription error:', error);
+            socket.emit('graphql_error', { message: 'Subscription failed' });
+        }
     });
     
     // Handle business events (from Kafka or other services)

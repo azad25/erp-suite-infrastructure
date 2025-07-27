@@ -1,6 +1,6 @@
 # ERP Suite Infrastructure Makefile
 
-.PHONY: help dev-up dev-down db-up monitoring-up tools-up logs clean k8s-deploy k8s-clean k8s-ports
+.PHONY: help dev-up dev-down db-up logging-up tools-up logs clean k8s-deploy k8s-clean k8s-ports
 .PHONY: dev-infrastructure dev-full-stack dev-full-stack-down status health backup restore setup restart
 .PHONY: kafka-topics init-dbs generate-config generate-all-configs generate-go-config validate-config show-config-info
 .PHONY: graphql-up grpc-up api-up proto-generate graphql-health grpc-health api-health
@@ -36,7 +36,7 @@ help:
 	@echo "  dev-full-stack       - Start infrastructure + core application services"
 	@echo "  dev-full-stack-down  - Stop full development stack"
 	@echo "  db-up                - Start database services only"
-	@echo "  monitoring-up        - Start monitoring stack only"
+	@echo "  logging-up           - Start logging stack only (Kibana)"
 	@echo "  tools-up             - Start development tools only"
 	@echo "  api-up               - Start API layer (GraphQL Gateway + gRPC Registry)"
 	@echo "  graphql-up           - Start GraphQL Gateway only"
@@ -80,7 +80,9 @@ prepare-environment:
 	@mkdir -p config/grafana/provisioning/dashboards
 	@mkdir -p config/grafana/dashboards
 	@mkdir -p websocket-server
+	@mkdir -p graphql-gateway/src
 	@mkdir -p backups
+	@echo "🔧 Setting up environment files..."
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
 		echo "✅ Created .env from .env.example"; \
@@ -102,6 +104,15 @@ prepare-environment:
 		cp websocket-server/server.js.example websocket-server/server.js; \
 		echo "✅ Created websocket-server/server.js from example"; \
 	fi
+	@if [ ! -f websocket-server/.env ] && [ -f websocket-server/.env.example ]; then \
+		cp websocket-server/.env.example websocket-server/.env; \
+		echo "✅ Created websocket-server/.env from example"; \
+	fi
+	@if [ ! -f graphql-gateway/.env ] && [ -f graphql-gateway/.env.example ]; then \
+		cp graphql-gateway/.env.example graphql-gateway/.env; \
+		echo "✅ Created graphql-gateway/.env from example"; \
+	fi
+	@echo "✅ Environment preparation complete!"
 
 # Start all development services
 dev-up: prepare-environment
@@ -109,7 +120,7 @@ dev-up: prepare-environment
 	@echo "Checking Docker Compose configuration..."
 	@docker compose --profile infrastructure config > /dev/null || { echo "❌ Docker Compose configuration is invalid!"; exit 1; }
 	@echo "Starting containers..."
-	@docker compose --profile infrastructure --profile api-layer --profile monitoring --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
+	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
 	@echo "✅ All services started!"
 	@$(MAKE) print-service-urls
 
@@ -129,10 +140,8 @@ print-service-urls:
 	@echo "  Kafka:               localhost:9092"
 	@echo "  Elasticsearch:       http://localhost:9200"
 	@echo ""
-	@echo "📋 Monitoring:"
-	@echo "  Prometheus:          http://localhost:9090"
-	@echo "  Grafana:             http://localhost:3000 (admin/admin)"
-	@echo "  Jaeger:              http://localhost:16686"
+	@echo "📋 Logging:"
+	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
 	@echo ""
 	@echo "📋 Development Tools:"
 	@echo "  pgAdmin:             http://localhost:8081 (admin@erp.com/admin)"
@@ -164,11 +173,11 @@ db-up: prepare-environment
 	@docker compose up -d postgres mongodb redis qdrant
 	@echo "✅ Database services started!"
 
-# Start monitoring stack only
-monitoring-up: prepare-environment
-	@echo "📊 Starting monitoring services..."
-	@docker compose --profile monitoring up -d
-	@echo "✅ Monitoring services started!"
+# Start logging stack only
+logging-up: prepare-environment
+	@echo "📊 Starting logging services..."
+	@docker compose --profile logging up -d
+	@echo "✅ Logging services started!"
 
 # Start development tools only
 tools-up: prepare-environment
@@ -243,9 +252,7 @@ k8s-ports:
 	@echo "kubectl port-forward svc/qdrant 6333:6333 -n erp-system"
 	@echo "kubectl port-forward svc/kafka 9092:9092 -n erp-system"
 	@echo "kubectl port-forward svc/elasticsearch 9200:9200 -n erp-system"
-	@echo "kubectl port-forward svc/prometheus 9090:9090 -n erp-system"
-	@echo "kubectl port-forward svc/grafana 3000:3000 -n erp-system"
-	@echo "kubectl port-forward svc/jaeger 16686:16686 -n erp-system"
+	@echo "kubectl port-forward svc/kibana 5601:5601 -n erp-system"
 
 # ============================================================================
 # UTILITY COMMANDS
@@ -391,7 +398,7 @@ dev-infrastructure: prepare-environment
 	@echo "Checking Docker Compose configuration..."
 	@docker compose --profile infrastructure config > /dev/null || { echo "❌ Docker Compose configuration is invalid!"; exit 1; }
 	@echo "Starting containers..."
-	@docker compose --profile infrastructure --profile api-layer --profile monitoring --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
+	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
 	@$(MAKE) kafka-topics
 	@$(MAKE) init-dbs
 	@echo "✅ Infrastructure services started!"
@@ -412,9 +419,6 @@ print-infrastructure-info:
 	@echo "  Qdrant:              http://localhost:6333"
 	@echo "  Kafka:               localhost:9092"
 	@echo "  Elasticsearch:       http://localhost:9200 (elastic/password)"
-	@echo "  Prometheus:          http://localhost:9090"
-	@echo "  Grafana:             http://localhost:3000 (admin/admin)"
-	@echo "  Jaeger:              http://localhost:16686"
 	@echo "  WebSocket:           http://localhost:3001"
 	@echo ""
 	@echo "📋 Development Tools:"
@@ -670,9 +674,9 @@ health: api-health
 	@echo -n "Kafka: "
 	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@echo -n "Elasticsearch: "
-	@curl -s -u elastic:password http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@curl -s -u elastic:${ELASTIC_PASSWORD:-password} http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@echo -n "Qdrant: "
-	@curl -s -f http://localhost:6333/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@curl -s -f http://localhost:6333/ > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 
 # Start only core infrastructure (no API layer, monitoring, or dev tools)
 infrastructure-only: prepare-environment
@@ -683,7 +687,7 @@ infrastructure-only: prepare-environment
 # Start minimal services (databases + message brokers only)
 minimal: prepare-environment
 	@echo "⚡ Starting minimal services..."
-	@docker compose up -d postgres mongodb redis kafka zookeeper
+	@docker compose up -d postgres mongodb redis kafka
 	@echo "✅ Minimal services started!"
 
 # Create .env file from example
