@@ -1,0 +1,40 @@
+  version: '3.8'
+  log-service:
+    build:
+      context: ../erp-log-viewer-service
+      dockerfile: Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
+    ports:
+      - "${LOG_SERVICE_HTTP_PORT:-8001}:8001"
+      - "${LOG_SERVICE_GRPC_PORT:-50051}:50051"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-erp_system}
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
+      AUTH_SERVICE_GRPC_HOST: auth-service
+      AUTH_SERVICE_GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      HTTP_PORT: 8001
+      GRPC_PORT: 50051
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ../erp-log-viewer-service:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      # auth-service:
+      #   condition: service_healthy
+    networks:
+      - erp-network
+    profiles:
+      - full-stack

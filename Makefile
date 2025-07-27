@@ -185,24 +185,24 @@ init-dbs:
 	@echo "✅ Databases initialized!"
 
 # Create Kafka topics with enhanced timeout and retry logic
-kafka-topics:
-	@echo "📝 Creating Kafka topics..."
-	@echo "⏳ Waiting for Kafka to be fully ready for topic operations..."
-	@sleep 15
-	@echo "🔍 Testing Kafka connectivity first..."
-	@if timeout 30 docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1; then \
-		echo "✅ Kafka is ready for topic operations"; \
-		topics="auth-events user-events business-events system-events"; \
-		for topic in $$topics; do \
-			echo "Creating topic: $$topic"; \
-			timeout 20 docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --if-not-exists > /dev/null 2>&1 && echo "✅ Topic $$topic created" || echo "⚠️ Topic $$topic already exists or creation failed"; \
-		done; \
-		echo "✅ Kafka topics initialization complete!"; \
-	else \
-		echo "⚠️ Kafka not ready after waiting, skipping topic creation"; \
-		echo "💡 You can create topics later with: make kafka-topics"; \
-		echo "✅ Continuing with infrastructure startup..."; \
-	fi
+# kafka-topics:
+# 	@echo "📝 Creating Kafka topics..."
+# 	@echo "⏳ Waiting for Kafka to be fully ready for topic operations..."
+# 	@sleep 15
+# 	@echo "🔍 Testing Kafka connectivity first..."
+# 	@if timeout 30 docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1; then \
+# 		echo "✅ Kafka is ready for topic operations"; \
+# 		topics="auth-events user-events business-events system-events"; \
+# 		for topic in $$topics; do \
+# 			echo "Creating topic: $$topic"; \
+# 			timeout 20 docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --if-not-exists > /dev/null 2>&1 && echo "✅ Topic $$topic created" || echo "⚠️ Topic $$topic already exists or creation failed"; \
+# 		done; \
+# 		echo "✅ Kafka topics initialization complete!"; \
+# 	else \
+# 		echo "⚠️ Kafka not ready after waiting, skipping topic creation"; \
+# 		echo "💡 You can create topics later with: make kafka-topics"; \
+# 		echo "✅ Continuing with infrastructure startup..."; \
+# 	fi
 
 # ============================================================================
 # ESSENTIAL COMMANDS
@@ -222,6 +222,7 @@ start-dev: prepare-environment check-ports
 	@echo "  Phase 6: WebSocket Server"
 	@echo "  Phase 7: Logging (Kibana)"
 	@echo "  Phase 8: Development Tools"
+	@echo "  Phase 9: Core Application Services"
 	@echo ""
 	@echo "🔄 Phase 1: Starting core databases..."
 	@docker compose up -d postgres redis
@@ -264,12 +265,17 @@ start-dev: prepare-environment check-ports
 	@echo "🔄 Phase 8: Starting development tools..."
 	@docker compose --profile dev-tools up -d
 	@echo "✅ Phase 8 complete: Development tools ready"
-	@$(MAKE) kafka-topics
+
+	@echo "🔄 Phase 9: Starting Log Service..."
+	@docker compose up -d log-service
+	$(MAKE) wait-for-service SERVICE=log-service
+	@sleep 2
+
 	@$(MAKE) init-dbs
 	@echo ""
 	@echo "🎉 Sequential startup complete!"
 	@$(MAKE) print-info
-
+# Add later 	@$(MAKE) kafka-topics 
 # Start all services
 start: prepare-environment
 	@echo "🚀 Starting ERP Suite infrastructure..."
@@ -496,6 +502,9 @@ print-info:
 	@echo "  Redis Commander:     http://localhost:8083"
 	@echo "  Kafka UI:            http://localhost:8084"
 	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
+
+	@echo "📋 API Gateway:"
+	@echo "  log-service:             http://localhost:8001/api/v1/"
 
 # ============================================================================
 # MACOS OPTIMIZED COMMANDS
