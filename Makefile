@@ -132,26 +132,43 @@ check-ports:
 		echo "🎉 All required ports are available!"; \
 	fi
 
-# Wait for a specific service to be healthy
+# Wait for a specific service to be healthy (optimized for slower systems)
 wait-for-service:
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "❌ SERVICE parameter required. Usage: make wait-for-service SERVICE=postgres"; \
 		exit 1; \
 	fi
 	@echo "⏳ Waiting for $(SERVICE) to be healthy..."
-	@timeout=120; \
+	@# Set different timeouts based on service type
+	@if [ "$(SERVICE)" = "kafka" ] || [ "$(SERVICE)" = "elasticsearch" ]; then \
+		timeout=300; \
+	elif [ "$(SERVICE)" = "kibana" ] || [ "$(SERVICE)" = "mongodb" ]; then \
+		timeout=240; \
+	else \
+		timeout=180; \
+	fi; \
+	initial_timeout=$$timeout; \
 	while [ $$timeout -gt 0 ]; do \
 		if docker compose ps $(SERVICE) | grep -q "healthy\|Up"; then \
-			echo "✅ $(SERVICE) is ready"; \
+			echo "✅ $(SERVICE) is ready (took $$((initial_timeout - timeout)) seconds)"; \
 			break; \
 		fi; \
-		echo "Waiting for $(SERVICE)... ($$timeout seconds remaining)"; \
-		sleep 5; \
-		timeout=$$((timeout - 5)); \
+		if [ $$((timeout % 30)) -eq 0 ]; then \
+			echo "⏳ Still waiting for $(SERVICE)... ($$timeout seconds remaining)"; \
+			echo "💡 $(SERVICE) is starting up, this may take a while on slower systems"; \
+		fi; \
+		sleep 10; \
+		timeout=$$((timeout - 10)); \
 	done; \
 	if [ $$timeout -le 0 ]; then \
 		echo "❌ $(SERVICE) failed to start within timeout"; \
-		docker compose logs $(SERVICE) | tail -20; \
+		echo "📋 Last 30 lines of $(SERVICE) logs:"; \
+		docker compose logs $(SERVICE) | tail -30; \
+		echo ""; \
+		echo "💡 Troubleshooting tips:"; \
+		echo "  • Check if Docker has enough memory allocated (4GB+ recommended)"; \
+		echo "  • Try: make logs APP=$(SERVICE) for full logs"; \
+		echo "  • Try: make reload SERVICE=$(SERVICE) to restart the service"; \
 		exit 1; \
 	fi
 
@@ -165,15 +182,19 @@ init-dbs:
 	done
 	@echo "✅ Databases initialized!"
 
-# Create Kafka topics
+# Create Kafka topics with enhanced timeout and retry logic
 kafka-topics:
 	@echo "📝 Creating Kafka topics..."
+	@echo "⏳ Waiting for Kafka to be fully ready for topic operations..."
+	@sleep 15
+	@echo "🔍 Testing Kafka connectivity first..."
+	@timeout 30 docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 || { echo "⚠️ Kafka not ready, skipping topic creation"; exit 0; }
 	@topics="auth-events user-events business-events system-events"; \
 	for topic in $$topics; do \
 		echo "Creating topic: $$topic"; \
-		docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1 > /dev/null 2>&1 || echo "Topic $$topic already exists"; \
+		timeout 20 docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --if-not-exists > /dev/null 2>&1 && echo "✅ Topic $$topic created" || echo "⚠️ Topic $$topic already exists or creation failed"; \
 	done
-	@echo "✅ Kafka topics initialized!"
+	@echo "✅ Kafka topics initialization complete!"
 
 # ============================================================================
 # ESSENTIAL COMMANDS
@@ -229,7 +250,7 @@ start-dev: prepare-environment check-ports
 	@echo "✅ Phase 6 complete: WebSocket server ready"
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
-	@docker compose --profile logging up -d
+	@docker compose up -d kibana
 	@echo "✅ Phase 7 complete: Logging services ready"
 	@sleep 2
 	@echo "🔄 Phase 8: Starting development tools..."

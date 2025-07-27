@@ -41,6 +41,44 @@ make logs APP=postgres
 make services
 ```
 
+### Service Management Examples
+
+```bash
+# Reload PostgreSQL and its dependents (GraphQL Gateway, pgAdmin)
+make reload SERVICE=postgres
+
+# Reload Redis and its dependents (GraphQL Gateway, WebSocket Server, Redis Commander)
+make reload SERVICE=redis
+
+# Reload Kafka and its dependents (Kafka UI)
+make reload SERVICE=kafka
+
+# Reload MongoDB and its dependents (Mongo Express)
+make reload SERVICE=mongodb
+
+# Reload Elasticsearch and its dependents (Kibana)
+make reload SERVICE=elasticsearch
+```
+
+### Available Service Names for Reload
+
+| Service Name | Description | Dependents |
+|--------------|-------------|------------|
+| `postgres` | PostgreSQL database | GraphQL Gateway, pgAdmin |
+| `redis` | Redis cache | GraphQL Gateway, WebSocket Server, Redis Commander |
+| `mongodb` | MongoDB database | Mongo Express |
+| `kafka` | Kafka message broker | Kafka UI |
+| `elasticsearch` | Elasticsearch search | Kibana |
+| `qdrant` | Qdrant vector database | - |
+| `graphql-gateway` | GraphQL API gateway | - |
+| `grpc-registry` | gRPC service registry | - |
+| `websocket-server` | WebSocket server | - |
+| `kibana` | Kibana UI | - |
+| `pgadmin` | pgAdmin UI | - |
+| `mongo-express` | Mongo Express UI | - |
+| `redis-commander` | Redis Commander UI | - |
+| `kafka-ui` | Kafka UI | - |
+
 ## 🏗️ Infrastructure Services
 
 ### Core Services
@@ -295,7 +333,61 @@ make services                 # Status check
 make reload SERVICE=redis     # Restart with dependencies
 ```
 
+## 🔄 Service Management
+
+### Reloading Services
+```bash
+# Reload specific service with dependencies
+make reload SERVICE=postgres
+make reload SERVICE=redis
+make reload SERVICE=kafka
+make reload SERVICE=mongodb
+make reload SERVICE=elasticsearch
+```
+
+**Smart Dependency Management:**
+- `postgres` → Also restarts GraphQL Gateway, pgAdmin
+- `redis` → Also restarts GraphQL Gateway, WebSocket Server, Redis Commander
+- `mongodb` → Also restarts Mongo Express
+- `elasticsearch` → Also restarts Kibana
+- `kafka` → Also restarts Kafka UI
+
+### Available Service Names
+| Service | Description |
+|---------|-------------|
+| `postgres` | PostgreSQL database |
+| `mongodb` | MongoDB database |
+| `redis` | Redis cache |
+| `kafka` | Kafka message broker |
+| `elasticsearch` | Elasticsearch search engine |
+| `qdrant` | Qdrant vector database |
+| `graphql-gateway` | GraphQL API gateway |
+| `grpc-registry` | gRPC service registry |
+| `websocket-server` | WebSocket server |
+| `kibana` | Kibana UI |
+| `pgadmin` | pgAdmin UI |
+| `mongo-express` | Mongo Express UI |
+| `redis-commander` | Redis Commander UI |
+| `kafka-ui` | Kafka UI |
+
 ## 🔍 Troubleshooting
+
+### Kafka Topic Creation Issues
+If Kafka topic creation gets stuck:
+```bash
+# Skip topic creation and start manually later
+make start  # Instead of start-dev
+
+# Check Kafka status
+make services
+make logs APP=kafka
+
+# Create topics manually when Kafka is ready
+make kafka-topics
+
+# Or restart Kafka if needed
+make reload SERVICE=kafka
+```
 
 ### Port Conflicts
 The system automatically checks for port conflicts before starting:
@@ -318,6 +410,43 @@ make logs APP=service-name
 
 # Restart problematic service
 make reload SERVICE=service-name
+```
+
+### Common Issues and Solutions
+
+#### 1. Kafka Taking Too Long
+```bash
+# Solution 1: Use regular start (skips topic creation)
+make start
+
+# Solution 2: Check Kafka logs
+make logs APP=kafka
+
+# Solution 3: Restart Kafka
+make reload SERVICE=kafka
+```
+
+#### 2. Services Not Starting
+```bash
+# Check Docker resources
+docker system df
+
+# Clean up if needed
+make macos-clean  # macOS users
+docker system prune -f
+
+# Restart with fresh state
+make stop
+make start-dev
+```
+
+#### 3. Port Conflicts
+```bash
+# Check which ports are in use
+make check-ports
+
+# Kill conflicting processes (example for port 5432)
+sudo lsof -ti:5432 | xargs kill -9
 ```
 
 ### Docker Issues
