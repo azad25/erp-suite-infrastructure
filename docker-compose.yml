@@ -5,7 +5,7 @@ services:
   # DATABASES
   # ============================================================================
   
-  # PostgreSQL - Primary relational database
+  # PostgreSQL - Primary relational database (Phase 1: Core Database)
   postgres:
     image: postgres:15-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-postgres
@@ -25,13 +25,21 @@ services:
       timeout: 5s
       retries: 3
       start_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
     networks:
       - erp-network
     profiles:
       - infrastructure
       - full-stack
 
-  # MongoDB - Analytics, logs, AI conversations
+  # MongoDB - Analytics, logs, AI conversations (Phase 2: Document Store)
   mongodb:
     image: mongo:6-jammy
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb

@@ -1,75 +1,23 @@
 # ERP Suite Infrastructure Makefile
 
-.PHONY: help dev-up dev-down db-up logging-up tools-up logs clean k8s-deploy k8s-clean k8s-ports
-.PHONY: dev-infrastructure dev-full-stack dev-full-stack-down status health backup restore setup restart
-.PHONY: kafka-topics init-dbs generate-config generate-all-configs generate-go-config validate-config show-config-info
-.PHONY: graphql-up grpc-up api-up proto-generate graphql-health grpc-health api-health
+.PHONY: help start-dev start stop reload logs services
 
 # Variables
-BACKUP_DIR ?= backups/$(shell date +%Y%m%d_%H%M%S)
-MODULE ?=
-ENV ?= development
-
-# Configurable module paths (can be overridden via environment variables)
-AUTH_MODULE_PATH ?= ../erp-suit-auth-service
-DJANGO_CORE_PATH ?= ../erp-suit-api-gateway
-FRONTEND_PATH ?= ../erp-suit-frontend
-# CRM_MODULE_PATH ?= ../erp-crm-service
-# HRM_MODULE_PATH ?= ../erp-hrm-service
-# FINANCE_MODULE_PATH ?= ../erp-finance-service
-# INVENTORY_MODULE_PATH ?= ../erp-inventory-service
-# PROJECT_MODULE_PATH ?= ../erp-project-service
-
-# Alternative naming patterns (for flexibility)
-AUTH_SERVICE_PATH ?= ../erp-suit-auth-service
-CORE_GATEWAY_PATH ?= ../erp-suit-api-gateway
-WEB_APP_PATH ?= ../erp-suit-web-app
+SERVICE ?=
+APP ?=
 
 # Default target
 help:
-	@echo "ERP Suite Infrastructure Commands:"
+	@echo "ERP Suite Infrastructure - Simplified Commands"
 	@echo ""
-	@echo "Docker Compose Commands:"
-	@echo "  dev-up               - Start all infrastructure services"
-	@echo "  dev-infrastructure   - Start infrastructure services (recommended)"
-	@echo "  dev-down             - Stop all services"
-	@echo "  dev-full-stack       - Start infrastructure + core application services"
-	@echo "  dev-full-stack-down  - Stop full development stack"
-	@echo "  db-up                - Start database services only"
-	@echo "  logging-up           - Start logging stack only (Kibana)"
-	@echo "  tools-up             - Start development tools only"
-	@echo "  api-up               - Start API layer (GraphQL Gateway + gRPC Registry)"
-	@echo "  graphql-up           - Start GraphQL Gateway only"
-	@echo "  grpc-up              - Start gRPC Registry only"
-	@echo "  infrastructure-only  - Start only core infrastructure (no API layer)"
-	@echo "  minimal              - Start minimal services (databases + message brokers)"
-	@echo "  macos-fast           - Start infrastructure optimized for macOS performance"
-	@echo "  macos-minimal        - Start only essential services for macOS development"
+	@echo "Essential Commands:"
+	@echo "  start-dev            - Start development infrastructure with sequential startup"
+	@echo "  start                - Start all services"
+	@echo "  stop                 - Stop all services"
+	@echo "  reload SERVICE=name  - Reload specific service (e.g., make reload SERVICE=postgres)"
 	@echo "  logs                 - Show logs from all services"
-	@echo "  clean                - Clean up all containers and volumes"
-	@echo ""
-	@echo "Kubernetes Commands:"
-	@echo "  k8s-deploy           - Deploy to Kubernetes"
-	@echo "  k8s-clean            - Clean up Kubernetes resources"
-	@echo "  k8s-ports            - Port forward services"
-	@echo ""
-	@echo "Configuration Commands:"
-	@echo "  generate-config      - Generate config for module (MODULE=name ENV=env)"
-	@echo "  generate-all-configs - Generate configs for all modules"
-	@echo "  generate-go-config   - Generate Go config loader (MODULE=name)"
-	@echo "  validate-config      - Validate configuration files"
-	@echo "  show-config-info     - Show available modules and environments"
-	@echo ""
-	@echo "Utility Commands:"
-	@echo "  status               - Show service status"
-	@echo "  health               - Check service health"
-	@echo "  api-health           - Check API layer health (GraphQL + gRPC)"
-	@echo "  proto-generate       - Generate Protocol Buffer files"
-	@echo "  env-setup            - Create .env file from example"
-	@echo "  backup               - Backup all data"
-	@echo "  restore              - Restore from backup (BACKUP_DIR=path)"
-	@echo "  setup                - Full setup for first time"
-	@echo "  restart              - Stop and start infrastructure (one command)"
+	@echo "  logs APP=name        - Show logs from specific app (e.g., make logs APP=postgres)"
+	@echo "  services             - Show running services status"
 	@echo ""
 	@echo "macOS Optimization Commands:"
 	@echo "  macos-config         - Switch to macOS-optimized configuration"
@@ -121,206 +69,94 @@ prepare-environment:
 	fi
 	@echo "✅ Environment preparation complete!"
 
-# Start all development services
-dev-up: prepare-environment
-	@echo "🚀 Starting ERP Suite infrastructure..."
-	@echo "Checking Docker Compose configuration..."
-	@docker compose --profile infrastructure config > /dev/null || { echo "❌ Docker Compose configuration is invalid!"; exit 1; }
-	@echo "Starting containers..."
-	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
-	@echo "✅ All services started!"
-	@$(MAKE) print-service-urls
+# Detect operating system
+detect-os:
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		echo "macOS"; \
+	elif [ "$$(uname)" = "Linux" ]; then \
+		echo "Linux"; \
+	elif [ "$$(uname -s | cut -c1-5)" = "MINGW" ] || [ "$$(uname -s | cut -c1-4)" = "MSYS" ]; then \
+		echo "Windows"; \
+	else \
+		echo "Unknown"; \
+	fi
 
-# Print service URLs
-print-service-urls:
+# Check for port conflicts before starting services (cross-platform)
+check-ports:
+	@echo "🔍 Checking for port conflicts..."
 	@echo ""
-	@echo "📋 API Layer:"
-	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
-	@echo "  GraphQL Playground:  http://localhost:4000/playground"
-	@echo "  gRPC Registry:       http://localhost:8500"
-	@echo ""
-	@echo "📋 Infrastructure Services:"
-	@echo "  PostgreSQL:          localhost:5432"
-	@echo "  MongoDB:             localhost:27017"
-	@echo "  Redis:               localhost:6379"
-	@echo "  Qdrant:              http://localhost:6333"
-	@echo "  Kafka:               localhost:9092"
-	@echo "  Elasticsearch:       http://localhost:9200"
-	@echo ""
-	@echo "📋 Logging:"
-	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
-	@echo ""
-	@echo "📋 Development Tools:"
-	@echo "  pgAdmin:             http://localhost:8081 (admin@erp.com/admin)"
-	@echo "  Mongo Express:       http://localhost:8082 (admin/pass)"
-	@echo "  Redis Commander:     http://localhost:8083"
-	@echo "  Kafka UI:            http://localhost:8084"
-	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
-	@echo ""
-	@echo "📋 gRPC Services:"
-	@echo "  Auth Service:        grpc://localhost:50051"
-	@echo "  CRM Service:         grpc://localhost:50052"
-	@echo "  HRM Service:         grpc://localhost:50053"
-	@echo "  Finance Service:     grpc://localhost:50054"
-	@echo "  Inventory Service:   grpc://localhost:50055"
-	@echo "  Project Service:     grpc://localhost:50056"
-	@echo ""
-	@echo "📋 Real-time:"
-	@echo "  WebSocket Server:    http://localhost:3001"
+	@echo "📋 Required Ports:"
+	@OS=$$($(MAKE) detect-os); \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI"; \
+	conflicts=0; \
+	for port_info in $$ports; do \
+		port=$$(echo $$port_info | cut -d: -f1); \
+		service=$$(echo $$port_info | cut -d: -f2); \
+		port_in_use=false; \
+		if [ "$$OS" = "Windows" ]; then \
+			if netstat -an | grep ":$$port " > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		elif [ "$$OS" = "Linux" ] || [ "$$OS" = "macOS" ]; then \
+			if command -v lsof > /dev/null 2>&1; then \
+				if lsof -i :$$port > /dev/null 2>&1; then \
+					port_in_use=true; \
+				fi; \
+			elif command -v netstat > /dev/null 2>&1; then \
+				if netstat -tuln | grep ":$$port " > /dev/null 2>&1; then \
+					port_in_use=true; \
+				fi; \
+			elif command -v ss > /dev/null 2>&1; then \
+				if ss -tuln | grep ":$$port " > /dev/null 2>&1; then \
+					port_in_use=true; \
+				fi; \
+			fi; \
+		fi; \
+		if [ "$$port_in_use" = "true" ]; then \
+			echo "❌ Port $$port ($$service) is already in use"; \
+			conflicts=$$((conflicts + 1)); \
+		else \
+			echo "✅ Port $$port ($$service) is available"; \
+		fi; \
+	done; \
+	echo ""; \
+	if [ $$conflicts -gt 0 ]; then \
+		echo "⚠️  Found $$conflicts port conflicts. Please stop conflicting services or change ports in .env"; \
+		if [ "$$OS" = "Windows" ]; then \
+			echo "💡 You can kill processes using: netstat -ano | findstr :PORT"; \
+		else \
+			echo "💡 You can kill processes using: sudo lsof -ti:PORT | xargs kill -9"; \
+		fi; \
+		exit 1; \
+	else \
+		echo "🎉 All required ports are available!"; \
+	fi
 
-# Stop all services
-dev-down:
-	@echo "🛑 Stopping ERP Suite infrastructure..."
-	@docker compose down --remove-orphans || docker compose down
-	@echo "✅ All services stopped!"
-
-# Start database services only
-db-up: prepare-environment
-	@echo "🗄️ Starting database services..."
-	@docker compose up -d postgres mongodb redis qdrant
-	@echo "✅ Database services started!"
-
-# Start logging stack only
-logging-up: prepare-environment
-	@echo "📊 Starting logging services..."
-	@docker compose --profile logging up -d
-	@echo "✅ Logging services started!"
-
-# Start development tools only
-tools-up: prepare-environment
-	@echo "🔧 Starting development tools..."
-	@docker compose --profile dev-tools up -d
-	@echo "✅ Development tools started!"
-
-# Show logs from all services
-logs:
-	@docker compose logs -f
-
-# Show logs from specific service (usage: make logs-postgres)
-logs-%:
-	@docker compose logs -f $*
-
-# Show service status
-status:
-	@echo "📊 Service Status:"
-	@docker compose ps
-
-# Check service health
-health:
-	@echo "🏥 ERP Suite Health Check:"
-	@echo ""
-	@echo "📊 Service Status:"
-	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
-	@echo ""
-	@echo "🔍 Quick Connectivity Tests:"
-	@echo -n "PostgreSQL: "
-	@docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Redis: "
-	@docker compose exec -T redis redis-cli --no-auth-warning -a redispassword ping > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "MongoDB: "
-	@docker compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Kafka: "
-	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Elasticsearch: "
-	@curl -s -u elastic:password http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-
-# Clean up all containers and volumes
-clean:
-	@echo "🧹 Cleaning up..."
-	@docker compose down -v --remove-orphans
-	@docker system prune -f
-	@echo "✅ Cleanup complete!"
-
-# ============================================================================
-# KUBERNETES COMMANDS
-# ============================================================================
-
-# Deploy to Kubernetes
-k8s-deploy:
-	@echo "☸️ Deploying to Kubernetes..."
-	@if [ ! -f k8s/namespace.yaml ]; then echo "❌ k8s/namespace.yaml not found!"; exit 1; fi
-	@kubectl apply -f k8s/namespace.yaml
-	@kubectl apply -f k8s/
-	@echo "✅ Deployed to Kubernetes!"
-
-# Clean up Kubernetes resources
-k8s-clean:
-	@echo "🧹 Cleaning up Kubernetes resources..."
-	@kubectl delete -f k8s/ --ignore-not-found=true
-	@echo "✅ Kubernetes cleanup complete!"
-
-# Port forward services
-k8s-ports:
-	@echo "🔌 Port forwarding commands:"
-	@echo "Run these commands in separate terminals:"
-	@echo "kubectl port-forward svc/postgres 5432:5432 -n erp-system"
-	@echo "kubectl port-forward svc/mongodb 27017:27017 -n erp-system"
-	@echo "kubectl port-forward svc/redis 6379:6379 -n erp-system"
-	@echo "kubectl port-forward svc/qdrant 6333:6333 -n erp-system"
-	@echo "kubectl port-forward svc/kafka 9092:9092 -n erp-system"
-	@echo "kubectl port-forward svc/elasticsearch 9200:9200 -n erp-system"
-	@echo "kubectl port-forward svc/kibana 5601:5601 -n erp-system"
-
-# ============================================================================
-# UTILITY COMMANDS
-# ============================================================================
-
-# Backup all data
-backup:
-	@echo "💾 Creating backup in $(BACKUP_DIR)..."
-	@mkdir -p $(BACKUP_DIR)
-	@echo "Backing up PostgreSQL..."
-	@docker compose exec -T postgres pg_dumpall -U postgres > $(BACKUP_DIR)/postgres.sql || echo "⚠️ PostgreSQL backup failed"
-	@echo "Backing up MongoDB..."
-	@docker compose exec -T mongodb mongodump --out /tmp/backup > /dev/null 2>&1 || echo "⚠️ MongoDB backup failed"
-	@docker cp $$(docker compose ps -q mongodb):/tmp/backup $(BACKUP_DIR)/mongodb 2>/dev/null || echo "⚠️ MongoDB backup copy failed"
-	@echo "✅ Backup created in $(BACKUP_DIR)/"
-
-# Restore from backup
-restore:
-	@if [ -z "$(BACKUP_DIR)" ] || [ ! -d "$(BACKUP_DIR)" ]; then \
-		echo "❌ BACKUP_DIR not specified or doesn't exist. Usage: make restore BACKUP_DIR=backups/20231201_120000"; \
+# Wait for a specific service to be healthy
+wait-for-service:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make wait-for-service SERVICE=postgres"; \
 		exit 1; \
 	fi
-	@echo "📥 Restoring from $(BACKUP_DIR)..."
-	@if [ -f "$(BACKUP_DIR)/postgres.sql" ]; then \
-		echo "Restoring PostgreSQL..."; \
-		docker compose exec -T postgres psql -U postgres < $(BACKUP_DIR)/postgres.sql; \
-	fi
-	@if [ -d "$(BACKUP_DIR)/mongodb" ]; then \
-		echo "Restoring MongoDB..."; \
-		docker cp $(BACKUP_DIR)/mongodb $$(docker compose ps -q mongodb):/tmp/restore; \
-		docker compose exec -T mongodb mongorestore /tmp/restore; \
-	fi
-	@echo "✅ Restore complete!"
-
-# Wait for services to be ready
-wait-for-services:
-	@echo "⏳ Waiting for services to be ready..."
-	@timeout=60; \
+	@echo "⏳ Waiting for $(SERVICE) to be healthy..."
+	@timeout=120; \
 	while [ $$timeout -gt 0 ]; do \
-		if docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1; then \
-			echo "✅ PostgreSQL is ready"; \
+		if docker compose ps $(SERVICE) | grep -q "healthy\|Up"; then \
+			echo "✅ $(SERVICE) is ready"; \
 			break; \
 		fi; \
-		echo "Waiting for PostgreSQL... ($$timeout seconds remaining)"; \
+		echo "Waiting for $(SERVICE)... ($$timeout seconds remaining)"; \
 		sleep 5; \
 		timeout=$$((timeout - 5)); \
-	done
-	@sleep 5
-
-# Create Kafka topics
-kafka-topics: wait-for-services
-	@echo "📝 Creating Kafka topics..."
-	@topics="auth-events user-events business-events system-events"; \
-	for topic in $$topics; do \
-		echo "Creating topic: $$topic"; \
-		docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1 > /dev/null 2>&1 || echo "Topic $$topic already exists"; \
-	done
-	@echo "✅ Kafka topics initialized!"
+	done; \
+	if [ $$timeout -le 0 ]; then \
+		echo "❌ $(SERVICE) failed to start within timeout"; \
+		docker compose logs $(SERVICE) | tail -20; \
+		exit 1; \
+	fi
 
 # Initialize databases
-init-dbs: wait-for-services
+init-dbs:
 	@echo "🔧 Initializing databases..."
 	@databases="erp_auth erp_core erp_crm erp_hrm erp_finance erp_inventory erp_projects"; \
 	for db in $$databases; do \
@@ -329,90 +165,157 @@ init-dbs: wait-for-services
 	done
 	@echo "✅ Databases initialized!"
 
-# Full setup (for first time)
-setup: dev-up kafka-topics init-dbs
-	@echo "🎉 Full setup complete!"
-
-# Restart infrastructure (stop and start in one command)
-restart: dev-down
-	@sleep 3
-	@$(MAKE) dev-infrastructure
-	@echo "🎉 Infrastructure restarted successfully!"
+# Create Kafka topics
+kafka-topics:
+	@echo "📝 Creating Kafka topics..."
+	@topics="auth-events user-events business-events system-events"; \
+	for topic in $$topics; do \
+		echo "Creating topic: $$topic"; \
+		docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1 > /dev/null 2>&1 || echo "Topic $$topic already exists"; \
+	done
+	@echo "✅ Kafka topics initialized!"
 
 # ============================================================================
-# FULL STACK DEVELOPMENT COMMANDS
+# ESSENTIAL COMMANDS
 # ============================================================================
 
-# Check if application repositories exist (flexible paths)
-check-app-repos:
-	@missing_repos=""; \
-	auth_path=""; \
-	core_path=""; \
-	frontend_path=""; \
-	\
-	# Check for auth service (multiple possible names) \
-	if [ -d "$(AUTH_MODULE_PATH)" ]; then \
-		auth_path="$(AUTH_MODULE_PATH)"; \
-	elif [ -d "$(AUTH_SERVICE_PATH)" ]; then \
-		auth_path="$(AUTH_SERVICE_PATH)"; \
-	else \
-		missing_repos="$$missing_repos auth-service"; \
-	fi; \
-	\
-	# Check for core gateway (multiple possible names) \
-	if [ -d "$(DJANGO_CORE_PATH)" ]; then \
-		core_path="$(DJANGO_CORE_PATH)"; \
-	elif [ -d "$(CORE_GATEWAY_PATH)" ]; then \
-		core_path="$(CORE_GATEWAY_PATH)"; \
-	else \
-		missing_repos="$$missing_repos core-gateway"; \
-	fi; \
-	\
-	# Check for frontend (multiple possible names) \
-	if [ -d "$(FRONTEND_PATH)" ]; then \
-		frontend_path="$(FRONTEND_PATH)"; \
-	elif [ -d "$(WEB_APP_PATH)" ]; then \
-		frontend_path="$(WEB_APP_PATH)"; \
-	else \
-		missing_repos="$$missing_repos frontend-app"; \
-	fi; \
-	\
-	if [ -n "$$missing_repos" ]; then \
-		echo "❌ Missing required application repositories:$$missing_repos"; \
-		echo ""; \
-		echo "💡 Expected paths (configurable via environment variables):"; \
-		echo "   Auth Service: $(AUTH_MODULE_PATH) or $(AUTH_SERVICE_PATH)"; \
-		echo "   Core Gateway: $(DJANGO_CORE_PATH) or $(CORE_GATEWAY_PATH)"; \
-		echo "   Frontend App: $(FRONTEND_PATH) or $(WEB_APP_PATH)"; \
-		echo ""; \
-		echo "🔧 You can override paths by setting environment variables:"; \
-		echo "   export AUTH_MODULE_PATH=../your-auth-service"; \
-		echo "   export DJANGO_CORE_PATH=../your-core-gateway"; \
-		echo "   export FRONTEND_PATH=../your-frontend-app"; \
-		echo ""; \
-		echo "For now, use 'make dev-infrastructure' to start just the infrastructure services."; \
-		exit 1; \
-	fi; \
-	echo "✅ Found application repositories:"; \
-	echo "   Auth Service: $$auth_path"; \
-	echo "   Core Gateway: $$core_path"; \
-	echo "   Frontend App: $$frontend_path"
+# Start development infrastructure with sequential startup
+start-dev: prepare-environment check-ports
+	@echo "🚀 Starting ERP Suite infrastructure sequentially..."
+	@echo "This reduces resource load by starting services in dependency order"
+	@echo ""
+	@echo "📋 Startup Sequence:"
+	@echo "  Phase 1: Core Databases (PostgreSQL, Redis)"
+	@echo "  Phase 2: Document & Vector Stores (MongoDB, Qdrant)"
+	@echo "  Phase 3: Message Broker (Kafka)"
+	@echo "  Phase 4: Search Engine (Elasticsearch)"
+	@echo "  Phase 5: API Layer (GraphQL Gateway, gRPC Registry)"
+	@echo "  Phase 6: WebSocket Server"
+	@echo "  Phase 7: Logging (Kibana)"
+	@echo "  Phase 8: Development Tools"
+	@echo ""
+	@echo "🔄 Phase 1: Starting core databases..."
+	@docker compose up -d postgres redis
+	@$(MAKE) wait-for-service SERVICE=postgres
+	@$(MAKE) wait-for-service SERVICE=redis
+	@echo "✅ Phase 1 complete: Core databases ready"
+	@sleep 2
+	@echo "🔄 Phase 2: Starting document and vector stores..."
+	@docker compose up -d mongodb qdrant
+	@$(MAKE) wait-for-service SERVICE=mongodb
+	@$(MAKE) wait-for-service SERVICE=qdrant
+	@echo "✅ Phase 2 complete: Document and vector stores ready"
+	@sleep 2
+	@echo "🔄 Phase 3: Starting message broker..."
+	@docker compose up -d kafka
+	@$(MAKE) wait-for-service SERVICE=kafka
+	@echo "✅ Phase 3 complete: Message broker ready"
+	@sleep 2
+	@echo "🔄 Phase 4: Starting search engine..."
+	@docker compose up -d elasticsearch
+	@$(MAKE) wait-for-service SERVICE=elasticsearch
+	@echo "✅ Phase 4 complete: Search engine ready"
+	@sleep 2
+	@echo "🔄 Phase 5: Starting API layer..."
+	@docker compose up -d grpc-registry
+	@$(MAKE) wait-for-service SERVICE=grpc-registry
+	@docker compose up -d graphql-gateway
+	@$(MAKE) wait-for-service SERVICE=graphql-gateway
+	@echo "✅ Phase 5 complete: API layer ready"
+	@sleep 2
+	@echo "🔄 Phase 6: Starting WebSocket server..."
+	@docker compose up -d websocket-server
+	@$(MAKE) wait-for-service SERVICE=websocket-server
+	@echo "✅ Phase 6 complete: WebSocket server ready"
+	@sleep 2
+	@echo "🔄 Phase 7: Starting logging services..."
+	@docker compose --profile logging up -d
+	@echo "✅ Phase 7 complete: Logging services ready"
+	@sleep 2
+	@echo "🔄 Phase 8: Starting development tools..."
+	@docker compose --profile dev-tools up -d
+	@echo "✅ Phase 8 complete: Development tools ready"
+	@$(MAKE) kafka-topics
+	@$(MAKE) init-dbs
+	@echo ""
+	@echo "🎉 Sequential startup complete!"
+	@$(MAKE) print-info
 
-# Start infrastructure services only (recommended for development)
-dev-infrastructure: prepare-environment
-	@echo "🚀 Starting ERP Suite infrastructure services..."
-	@echo "This includes all databases, message brokers, API layer, monitoring, and development tools"
+# Start all services
+start: prepare-environment
+	@echo "🚀 Starting ERP Suite infrastructure..."
 	@echo "Checking Docker Compose configuration..."
 	@docker compose --profile infrastructure config > /dev/null || { echo "❌ Docker Compose configuration is invalid!"; exit 1; }
 	@echo "Starting containers..."
 	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
 	@$(MAKE) kafka-topics
 	@$(MAKE) init-dbs
-	@echo "✅ Infrastructure services started!"
-	@$(MAKE) print-infrastructure-info
+	@echo "✅ All services started!"
+	@$(MAKE) print-info
 
-# Print infrastructure information
-print-infrastructure-info:
+# Stop all services
+stop:
+	@echo "🛑 Stopping ERP Suite infrastructure..."
+	@docker compose down --remove-orphans || docker compose down
+	@echo "✅ All services stopped!"
+
+# Reload specific service
+reload:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make reload SERVICE=postgres"; \
+		exit 1; \
+	fi
+	@echo "🔄 Reloading $(SERVICE) and checking dependents..."
+	@docker compose restart $(SERVICE)
+	@$(MAKE) wait-for-service SERVICE=$(SERVICE)
+	@echo "✅ $(SERVICE) reloaded successfully"
+	@if [ "$(SERVICE)" = "postgres" ]; then \
+		echo "🔄 Restarting services that depend on PostgreSQL..."; \
+		docker compose restart graphql-gateway pgadmin; \
+	elif [ "$(SERVICE)" = "redis" ]; then \
+		echo "🔄 Restarting services that depend on Redis..."; \
+		docker compose restart graphql-gateway websocket-server redis-commander; \
+	elif [ "$(SERVICE)" = "mongodb" ]; then \
+		echo "🔄 Restarting services that depend on MongoDB..."; \
+		docker compose restart mongo-express; \
+	elif [ "$(SERVICE)" = "elasticsearch" ]; then \
+		echo "🔄 Restarting services that depend on Elasticsearch..."; \
+		docker compose restart kibana; \
+	elif [ "$(SERVICE)" = "kafka" ]; then \
+		echo "🔄 Restarting services that depend on Kafka..."; \
+		docker compose restart kafka-ui; \
+	fi
+	@echo "✅ Dependent services restarted"
+
+# Show logs from all services or specific app
+logs:
+	@if [ -n "$(APP)" ]; then \
+		echo "📋 Showing logs for $(APP)..."; \
+		docker compose logs -f $(APP); \
+	else \
+		echo "📋 Showing logs for all services..."; \
+		docker compose logs -f; \
+	fi
+
+# Show running services status
+services:
+	@echo "📊 Service Status:"
+	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker compose ps
+	@echo ""
+	@echo "🔍 Quick Health Check:"
+	@printf "PostgreSQL: "
+	@docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@printf "Redis: "
+	@docker compose exec -T redis redis-cli --no-auth-warning -a redispassword ping > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@printf "MongoDB: "
+	@docker compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@printf "Kafka: "
+	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@printf "Elasticsearch: "
+	@curl -s -u elastic:password http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+
+# Print service information
+print-info:
 	@echo ""
 	@echo "📋 API Layer:"
 	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
@@ -434,345 +337,10 @@ print-infrastructure-info:
 	@echo "  Redis Commander:     http://localhost:8083"
 	@echo "  Kafka UI:            http://localhost:8084"
 	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
-	@echo ""
-	@echo "📋 gRPC Services (when running):"
-	@echo "  Auth Service:        grpc://localhost:50051"
-	@echo "  CRM Service:         grpc://localhost:50052"
-	@echo "  HRM Service:         grpc://localhost:50053"
-	@echo "  Finance Service:     grpc://localhost:50054"
-	@echo "  Inventory Service:   grpc://localhost:50055"
-	@echo "  Project Service:     grpc://localhost:50056"
-	@echo ""
-	@echo "🎯 Infrastructure ready! You can now:"
-	@echo "   1. Start developing your microservices with GraphQL + gRPC"
-	@echo "   2. Connect to databases and message brokers"
-	@echo "   3. Use GraphQL Playground for API testing"
-	@echo "   4. Monitor services via Consul registry"
-	@echo "   5. Use development tools for debugging"
-
-# Start full stack (infrastructure + application services) - requires app repos
-dev-full-stack: prepare-environment check-app-repos
-	@echo "🚀 Starting ERP Suite full development stack..."
-	@echo "This includes infrastructure + core application services"
-	@echo "Checking Docker Compose configuration..."
-	@docker compose --profile full-stack config > /dev/null || { echo "❌ Docker Compose configuration is invalid!"; exit 1; }
-	@echo "Starting containers..."
-	@docker compose --profile full-stack up -d || { echo "❌ Failed to start containers!"; exit 1; }
-	@$(MAKE) kafka-topics
-	@$(MAKE) init-dbs
-	@echo "✅ Full development stack started!"
-	@echo ""
-	@echo "📋 Core Services:"
-	@echo "  🔐 Auth Service:     http://localhost:8080 (gRPC: 50051)"
-	@echo "  🚪 Core Gateway:     http://localhost:8000"
-	@echo "  ⚛️  Frontend:         http://localhost:3000"
-	@$(MAKE) print-infrastructure-info
-	@echo "🎯 Full stack ready for development!"
-
-# Stop full development stack
-dev-full-stack-down:
-	@echo "🛑 Stopping ERP Suite full development stack..."
-	@docker compose --profile full-stack down --remove-orphans
-	@echo "✅ Full development stack stopped!"
-
-# ============================================================================
-# SHARED CONFIGURATION COMMANDS
-# ============================================================================
-
-# Generate shared configuration for a module
-generate-config:
-	@echo "🔧 Generating shared configuration..."
-	@if [ -z "$(MODULE)" ]; then \
-		echo "❌ MODULE parameter required. Usage: make generate-config MODULE=auth ENV=development"; \
-		exit 1; \
-	fi
-	@if [ ! -d shared-config ]; then \
-		echo "❌ shared-config directory not found!"; \
-		exit 1; \
-	fi
-	@echo "Generating config for module: $(MODULE), environment: $(ENV)"
-	@cd shared-config && python3 generators/generate-env.py --module=$(MODULE) --env=$(ENV)
-	@echo "✅ Configuration generated: shared-config/.env.$(MODULE).$(ENV)"
-
-# Generate configurations for all common modules
-generate-all-configs:
-	@echo "🔧 Generating configurations for all modules..."
-	@modules="auth crm hrm finance inventory projects ai notification frontend"; \
-	for module in $$modules; do \
-		$(MAKE) generate-config MODULE=$$module ENV=$(ENV) || echo "⚠️ Failed to generate config for $$module"; \
-	done
-	@echo "✅ All configurations generated!"
-
-# Generate Go configuration loader
-generate-go-config:
-	@echo "🔧 Generating Go configuration loader for module: $(MODULE)"
-	@if [ -z "$(MODULE)" ]; then \
-		echo "❌ MODULE parameter required. Usage: make generate-go-config MODULE=auth"; \
-		exit 1; \
-	fi
-	@if [ ! -d shared-config ]; then \
-		echo "❌ shared-config directory not found!"; \
-		exit 1; \
-	fi
-	@cd shared-config && go run generators/generate-env.go --module=$(MODULE) --env=$(ENV)
-	@echo "✅ Go configuration generated for $(MODULE)"
-
-# Validate configuration files
-validate-config:
-	@echo "🔍 Validating configuration files..."
-	@if [ ! -d shared-config ]; then \
-		echo "❌ shared-config directory not found!"; \
-		exit 1; \
-	fi
-	@if [ -f shared-config/config.yaml ]; then \
-		cd shared-config && python3 -c "import yaml; yaml.safe_load(open('config.yaml'))" && echo "✅ config.yaml is valid"; \
-	else \
-		echo "⚠️ config.yaml not found"; \
-	fi
-	@if [ -d shared-config/environments ]; then \
-		cd shared-config && find environments -name "*.yaml" -exec python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" {} \; && echo "✅ All environment files are valid"; \
-	else \
-		echo "⚠️ environments directory not found"; \
-	fi
-	@echo "✅ Configuration validation complete!"
-
-# Show available modules and environments
-show-config-info:
-	@if [ ! -d shared-config ] || [ ! -f shared-config/config.yaml ]; then \
-		echo "❌ shared-config/config.yaml not found!"; \
-		exit 1; \
-	fi
-	@echo "📋 Available Modules:"
-	@cd shared-config && python3 -c "import yaml; config=yaml.safe_load(open('config.yaml')); [print(f'  - {m[\"name\"]}: {m[\"description\"]}') for m in config.get('modules', [])]"
-	@echo ""
-	@echo "📋 Available Environments:"
-	@cd shared-config && python3 -c "import yaml; config=yaml.safe_load(open('config.yaml')); [print(f'  - {e[\"name\"]}: {e[\"description\"]}') for e in config.get('environments', [])]"
-
-# ============================================================================
-# API LAYER COMMANDS (GraphQL + gRPC)
-# ============================================================================
-
-# Start API layer services (GraphQL Gateway + gRPC Registry)
-api-up: prepare-environment
-	@echo "🚀 Starting API layer services..."
-	@docker compose --profile api-layer up -d
-	@echo "✅ API layer services started!"
-	@echo ""
-	@echo "📋 API Services:"
-	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
-	@echo "  GraphQL Playground:  http://localhost:4000/playground"
-	@echo "  gRPC Registry:       http://localhost:8500"
-
-# Start GraphQL Gateway only
-graphql-up: prepare-environment
-	@echo "🚀 Starting GraphQL Gateway..."
-	@if [ ! -d graphql-gateway ]; then \
-		echo "❌ graphql-gateway directory not found!"; \
-		echo "Please ensure the GraphQL Gateway is properly set up."; \
-		exit 1; \
-	fi
-	@docker compose up -d graphql-gateway
-	@echo "✅ GraphQL Gateway started!"
-	@echo "  GraphQL Endpoint:    http://localhost:4000/graphql"
-	@echo "  GraphQL Playground:  http://localhost:4000/playground"
-
-# Start gRPC Registry only
-grpc-up: prepare-environment
-	@echo "🚀 Starting gRPC Registry (Consul)..."
-	@docker compose up -d grpc-registry
-	@echo "✅ gRPC Registry started!"
-	@echo "  Consul UI:           http://localhost:8500"
-
-# Generate Protocol Buffer files
-proto-generate:
-	@echo "🔧 Generating Protocol Buffer files..."
-	@if [ ! -d graphql-gateway/proto ]; then \
-		echo "❌ graphql-gateway/proto directory not found!"; \
-		exit 1; \
-	fi
-	@cd graphql-gateway && npm run proto:generate
-	@echo "✅ Protocol Buffer files generated!"
-
-# Check GraphQL Gateway health
-graphql-health:
-	@echo "🏥 Checking GraphQL Gateway health..."
-	@curl -s -f http://localhost:4000/health > /dev/null 2>&1 && \
-		echo "✅ GraphQL Gateway is healthy" || \
-		echo "❌ GraphQL Gateway is not responding"
-	@curl -s -X POST -H "Content-Type: application/json" \
-		-d '{"query":"{ __schema { queryType { name } } }"}' \
-		http://localhost:4000/graphql > /dev/null 2>&1 && \
-		echo "✅ GraphQL Schema is accessible" || \
-		echo "❌ GraphQL Schema is not accessible"
-
-# Check gRPC Registry health
-grpc-health:
-	@echo "🏥 Checking gRPC Registry health..."
-	@curl -s -f http://localhost:8500/v1/status/leader > /dev/null 2>&1 && \
-		echo "✅ gRPC Registry (Consul) is healthy" || \
-		echo "❌ gRPC Registry (Consul) is not responding"
-
-# Check API layer health
-api-health: graphql-health grpc-health
-	@echo ""
-	@echo "🎯 API Layer Health Check Complete!"
-
-# Install GraphQL Gateway dependencies
-graphql-install:
-	@echo "📦 Installing GraphQL Gateway dependencies..."
-	@if [ ! -d graphql-gateway ]; then \
-		echo "❌ graphql-gateway directory not found!"; \
-		exit 1; \
-	fi
-	@cd graphql-gateway && npm install
-	@echo "✅ GraphQL Gateway dependencies installed!"
-
-# Start GraphQL Gateway in development mode
-graphql-dev:
-	@echo "🚀 Starting GraphQL Gateway in development mode..."
-	@if [ ! -d graphql-gateway ]; then \
-		echo "❌ graphql-gateway directory not found!"; \
-		exit 1; \
-	fi
-	@cd graphql-gateway && npm run dev
-
-# Show GraphQL schema
-graphql-schema:
-	@echo "📋 GraphQL Schema:"
-	@curl -s -X POST -H "Content-Type: application/json" \
-		-d '{"query":"{ __schema { types { name description } } }"}' \
-		http://localhost:4000/graphql | jq '.data.__schema.types[] | select(.name | startswith("__") | not) | {name, description}' 2>/dev/null || \
-		echo "❌ Could not fetch GraphQL schema. Is the GraphQL Gateway running?"
-
-# Show registered gRPC services
-grpc-services:
-	@echo "📋 Registered gRPC Services:"
-	@curl -s http://localhost:8500/v1/catalog/services | jq 'keys[]' 2>/dev/null || \
-		echo "❌ Could not fetch gRPC services. Is the gRPC Registry running?"
-
-# Performance test GraphQL endpoint
-graphql-perf:
-	@echo "⚡ Running GraphQL performance test..."
-	@echo "Testing simple query performance..."
-	@time curl -s -X POST -H "Content-Type: application/json" \
-		-d '{"query":"{ __schema { queryType { name } } }"}' \
-		http://localhost:4000/graphql > /dev/null
-	@echo "✅ Performance test complete!"
-
-# ============================================================================
-# ENHANCED HEALTH CHECKS
-# ============================================================================
-
-# Enhanced health check including API layer
-health: api-health
-	@echo ""
-	@echo "🏥 ERP Suite Complete Health Check:"
-	@echo ""
-	@echo "📊 Service Status:"
-	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
-	@echo ""
-	@echo "🔍 Infrastructure Connectivity Tests:"
-	@echo -n "PostgreSQL: "
-	@docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Redis: "
-	@docker compose exec -T redis redis-cli --no-auth-warning -a redispassword ping > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "MongoDB: "
-	@docker compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Kafka: "
-	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Elasticsearch: "
-	@curl -s -u elastic:${ELASTIC_PASSWORD:-password} http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-	@echo -n "Qdrant: "
-	@curl -s -f http://localhost:6333/ > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
-
-# Start only core infrastructure (no API layer, monitoring, or dev tools)
-infrastructure-only: prepare-environment
-	@echo "🏗️ Starting core infrastructure only..."
-	@docker compose --profile infrastructure up -d
-	@echo "✅ Core infrastructure started!"
-
-# Start minimal services (databases + message brokers only)
-minimal: prepare-environment
-	@echo "⚡ Starting minimal services..."
-	@docker compose up -d postgres mongodb redis kafka
-	@echo "✅ Minimal services started!"
-
-# Create .env file from example
-env-setup:
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo "✅ Created .env from .env.example"; \
-		echo "⚠️  Please review and customize .env file for your environment"; \
-	else \
-		echo "⚠️  .env file already exists"; \
-	fi
 
 # ============================================================================
 # MACOS OPTIMIZED COMMANDS
 # ============================================================================
-
-# Start infrastructure optimized for macOS performance
-macos-fast: prepare-environment
-	@echo "🍎 Starting ERP Suite infrastructure optimized for macOS..."
-	@echo "This configuration reduces resource usage and startup time on macOS"
-	@echo "Starting essential services first..."
-	@docker compose up -d postgres redis
-	@echo "⏳ Waiting for databases to be ready..."
-	@sleep 10
-	@echo "Starting remaining infrastructure services..."
-	@docker compose --profile infrastructure up -d
-	@echo "⏳ Waiting for services to stabilize..."
-	@sleep 15
-	@echo "Starting API layer..."
-	@docker compose --profile api-layer up -d
-	@$(MAKE) kafka-topics
-	@$(MAKE) init-dbs
-	@echo "✅ macOS-optimized infrastructure started!"
-	@$(MAKE) print-macos-info
-
-# Start only essential services for macOS development
-macos-minimal: prepare-environment
-	@echo "🍎 Starting minimal ERP Suite services for macOS..."
-	@echo "This includes only PostgreSQL, Redis, and GraphQL Gateway"
-	@docker compose up -d postgres redis
-	@echo "⏳ Waiting for databases..."
-	@sleep 10
-	@docker compose up -d graphql-gateway grpc-registry
-	@$(MAKE) init-dbs
-	@echo "✅ Minimal macOS setup complete!"
-	@echo ""
-	@echo "📋 Available Services:"
-	@echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"
-	@echo "  Redis:               localhost:6379 (password: redispassword)"
-	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
-	@echo "  gRPC Registry:       http://localhost:8500"
-	@echo ""
-	@echo "💡 To add more services later:"
-	@echo "  make db-up           - Add MongoDB and Qdrant"
-	@echo "  make tools-up        - Add development tools"
-	@echo "  docker compose up -d kafka  - Add Kafka"
-
-# Print macOS-specific information
-print-macos-info:
-	@echo ""
-	@echo "🍎 macOS-Optimized Infrastructure Ready!"
-	@echo ""
-	@echo "📋 Core Services:"
-	@echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"
-	@echo "  Redis:               localhost:6379 (password: redispassword)"
-	@echo "  MongoDB:             localhost:27017 (root/password)"
-	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
-	@echo "  gRPC Registry:       http://localhost:8500"
-	@echo ""
-	@echo "⚡ Performance Tips for macOS:"
-	@echo "  • Services start sequentially to reduce resource contention"
-	@echo "  • Memory usage optimized for Docker Desktop on macOS"
-	@echo "  • Health checks reduced to minimize CPU usage"
-	@echo "  • Use 'make macos-minimal' for fastest startup"
-	@echo ""
-	@echo "🔧 Optional Services (start as needed):"
-	@echo "  make tools-up        - Development tools (pgAdmin, etc.)"
-	@echo "  docker compose up -d kafka elasticsearch  - Message queue & search"
 
 # Switch to macOS-optimized configuration
 macos-config:
@@ -788,7 +356,7 @@ macos-config:
 		echo "  • Disabled optional services by default"; \
 		echo "  • Set log level to 'warn' to reduce I/O"; \
 		echo ""; \
-		echo "🚀 Now run: make macos-fast"; \
+		echo "🚀 Now run: make start-dev"; \
 	else \
 		echo "❌ .env.macos file not found!"; \
 		exit 1; \
@@ -807,9 +375,8 @@ macos-performance:
 	@echo "💡 Performance Tips:"
 	@echo "  • Increase Docker Desktop memory allocation to 4GB+"
 	@echo "  • Enable 'Use gRPC FUSE for file sharing' in Docker Desktop"
-	@echo "  • Use 'make macos-config && make macos-fast' for best performance"
+	@echo "  • Use 'make macos-config && make start-dev' for best performance"
 	@echo "  • Consider using Colima instead of Docker Desktop"
-	@echo "  • Use 'make macos-minimal' for fastest development setup"
 
 # Clean up and optimize for macOS
 macos-clean:
@@ -821,4 +388,4 @@ macos-clean:
 	@echo ""
 	@echo "💡 Next steps:"
 	@echo "  • Restart Docker Desktop"
-	@echo "  • Run 'make macos-fast' for optimized startup"
+	@echo "  • Run 'make start-dev' for optimized startup"
