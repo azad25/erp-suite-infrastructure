@@ -89,7 +89,7 @@ check-ports:
 	@echo ""
 	@echo "📋 Required Ports:"
 	@OS=$$($(MAKE) detect-os); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI"; \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	conflicts=0; \
 	for port_info in $$ports; do \
 		port=$$(echo $$port_info | cut -d: -f1); \
@@ -266,14 +266,32 @@ start-dev: prepare-environment check-ports
 	@docker compose --profile dev-tools up -d
 	@echo "✅ Phase 8 complete: Development tools ready"
 
-	@echo "🔄 Phase 9: Starting Log Service..."
-	@docker compose up -d log-service
-	$(MAKE) wait-for-service SERVICE=log-service
-	@sleep 2
+	@echo "🔄 Phase 9: Starting core application services..."
 
+	@echo "🔄 Configuring Database..."
 	@$(MAKE) init-dbs
+
+	@echo "🔄 Phase 9a: Starting Auth Service..."
+	@docker compose --profile full-stack up -d auth-service
+	@$(MAKE) wait-for-service SERVICE=auth-service
+
+	@echo "🔄 Phase 9b: Starting API Gateway..."
+	@docker compose --profile full-stack up -d api-gateway
+	@$(MAKE) wait-for-service SERVICE=api-gateway
+
+	@echo "🔄 Phase 9c: Starting Log Service..."
+	@docker compose --profile full-stack up -d log-service
+	@$(MAKE) wait-for-service SERVICE=log-service
+
+	@echo "🔄 Phase 10: Starting Frontend..."
+	@docker compose --profile full-stack up -d erp-frontend
+	@$(MAKE) wait-for-service SERVICE=erp-frontend
+
+	@echo "✅ Phase 9-10 complete: All core application services up and running..."
+
 	@echo ""
-	@echo "🎉 Sequential startup complete!"
+
+	@echo "✅ ERP Infrastructure online"
 	@$(MAKE) print-info
 # Add later 	@$(MAKE) kafka-topics 
 # Start all services
@@ -301,7 +319,7 @@ stop:
 	@docker network prune -f 2>/dev/null || true
 	@echo "🔍 Checking for processes still using ERP ports..."
 	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084 8080 8000 8001 3000"; \
 	killed_processes=0; \
 	for port in $$ports; do \
 		if [ "$$OS" = "Darwin" ]; then \
@@ -326,7 +344,7 @@ stop:
 	fi
 	@echo "🔍 Final port check..."
 	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084 8080 8000 8001 3000"; \
 	still_in_use=0; \
 	for port in $$ports; do \
 		port_in_use=false; \
@@ -349,7 +367,7 @@ stop:
 	else \
 		echo "⚠️  $$still_in_use ports are still in use (may be system services)"; \
 	fi
-	@echo "✅ ERP Suite infrastructure stopped and ports freed!"
+	@echo "🛑 ERP Suite infrastructure offlione and ports freed!"
 
 # Force stop with aggressive cleanup
 force-stop:
@@ -458,7 +476,7 @@ status:
 	@echo ""
 	@echo "🌐 Port Status:"
 	@OS=$$(uname); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket"; \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	for port_info in $$ports; do \
 		port=$$(echo $$port_info | cut -d: -f1); \
 		service=$$(echo $$port_info | cut -d: -f2); \
@@ -503,8 +521,11 @@ print-info:
 	@echo "  Kafka UI:            http://localhost:8084"
 	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
 
-	@echo "📋 API Gateway:"
-	@echo "  log-service:             http://localhost:8001/api/v1/"
+	@echo "📋 Application Services:"
+	@echo "  Auth Service:        http://localhost:8080/api/v1/ (HTTP) | gRPC: localhost:50051"
+	@echo "  API Gateway:         http://localhost:8000/api/v1/ (Django)"
+	@echo "  Log Service:         http://localhost:8001/api/v1/ (HTTP) | gRPC: localhost:50052"
+	@echo "  Frontend:            http://localhost:3000 (Next.js)"
 
 # ============================================================================
 # MACOS OPTIMIZED COMMANDS

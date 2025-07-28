@@ -437,183 +437,191 @@ services:
   # ============================================================================
 
   # Auth Service (Go) - Authentication and Authorization
-  # auth-service:
-  #   build:
-  #     context: ../auth-module
-  #     dockerfile: Dockerfile.dev
-  #   container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-auth-service
-  #   environment:
-  #     # Database Configuration
-  #     DB_HOST: postgres
-  #     DB_PORT: 5432
-  #     DB_NAME: erp_auth
-  #     DB_USER: ${POSTGRES_USER:-postgres}
-  #     DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-  #     DB_SSL_MODE: disable
+  auth-service:
+    build:
+      context: ../erp-auth-service
+      dockerfile: Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-auth-service
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: erp_auth
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_SSL_MODE: disable
       
-  #     # Redis Configuration
-  #     REDIS_HOST: redis
-  #     REDIS_PORT: 6379
-  #     REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
-  #     REDIS_DB: 0
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+      REDIS_DB: 0
       
-  #     # Kafka Configuration
-  #     KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-  #     KAFKA_GROUP_ID: auth-service-group
+      # Kafka Configuration
+      KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
+      KAFKA_GROUP_ID: auth-service-group
       
-  #     # Service Configuration
-  #     HTTP_PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
-  #     GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
-  #     JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-  #     JWT_EXPIRY: ${JWT_EXPIRY:-24h}
+      # Service Configuration
+      PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
+      GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_ACCESS_EXPIRY: 3600
+      JWT_REFRESH_EXPIRY: 604800
       
-  #     # Environment
-  #     ENV: ${NODE_ENV:-development}
-  #     LOG_LEVEL: ${LOG_LEVEL:-debug}
-  #   ports:
-  #     - "${AUTH_SERVICE_HTTP_PORT:-8080}:${AUTH_SERVICE_HTTP_PORT:-8080}"   # HTTP API
-  #     - "${AUTH_SERVICE_GRPC_PORT:-50051}:${AUTH_SERVICE_GRPC_PORT:-50051}" # gRPC API
-  #   volumes:
-  #     - ../auth-module:/app
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:${AUTH_SERVICE_HTTP_PORT:-8080}/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #   networks:
-  #     - erp-network
-  #   profiles:
-  #     - full-stack
+      # Kafka Topic Configuration
+      KAFKA_TOPIC: auth-events
+      
+      # Server Configuration
+      GIN_MODE: debug
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:4000
+      
+      # Environment
+      ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+    ports:
+      - "${AUTH_SERVICE_HTTP_PORT:-8080}:${AUTH_SERVICE_HTTP_PORT:-8080}"   # HTTP API
+      - "${AUTH_SERVICE_GRPC_PORT:-50051}:${AUTH_SERVICE_GRPC_PORT:-50051}" # gRPC API
+    volumes:
+      - ../erp-auth-service:/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${AUTH_SERVICE_HTTP_PORT:-8080}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - erp-network
+    profiles:
+      - full-stack
 
-  # Django Core Gateway - Main API Gateway
-  # api-gateway:
-  #   build:
-  #     context: ../erp-django-core-app
-  #     dockerfile: Dockerfile.dev
-  #   container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
-  #   environment:
-  #     # Database Configuration
-  #     DB_HOST: postgres
-  #     DB_PORT: 5432
-  #     DB_NAME: erp_system
-  #     DB_USER: ${POSTGRES_USER:-postgres}
-  #     DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  # Django API Gateway - Main API Gateway
+  api-gateway:
+    build:
+      context: ../erp-api-gateway
+      dockerfile: Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: erp_system
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       
-  #     # Redis Configuration
-  #     REDIS_HOST: redis
-  #     REDIS_PORT: 6379
-  #     REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
-  #     REDIS_DB: 1
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+      REDIS_DB: 1
       
-  #     # Kafka Configuration
-  #     KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-  #     KAFKA_GROUP_ID: django-core-group
+      # Kafka Configuration
+      KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
+      KAFKA_GROUP_ID: django-api-gateway-group
       
-  #     # Elasticsearch Configuration
-  #     ELASTICSEARCH_HOST: elasticsearch
-  #     ELASTICSEARCH_PORT: 9200
-  #     ELASTICSEARCH_USERNAME: elastic
-  #     ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-password}
+      # Elasticsearch Configuration
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-password}
       
-  #     # MongoDB Configuration
-  #     MONGODB_HOST: mongodb
-  #     MONGODB_PORT: 27017
-  #     MONGODB_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
-  #     MONGODB_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
-  #     MONGODB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
+      # MongoDB Configuration
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
+      MONGODB_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
       
-  #     # Auth Service Configuration
-  #     AUTH_SERVICE_HTTP_URL: http://auth-service:${AUTH_SERVICE_HTTP_PORT:-8080}
-  #     AUTH_SERVICE_GRPC_HOST: auth-service
-  #     AUTH_SERVICE_GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      # Auth Service Configuration
+      AUTH_SERVICE_HTTP_URL: http://auth-service:${AUTH_SERVICE_HTTP_PORT:-8080}
+      AUTH_SERVICE_GRPC_HOST: auth-service
+      AUTH_SERVICE_GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
       
-  #     # WebSocket Configuration
-  #     WEBSOCKET_URL: http://websocket-server:${WEBSOCKET_PORT:-3001}
+      # WebSocket Configuration
+      WEBSOCKET_URL: http://websocket-server:${WEBSOCKET_PORT:-3001}
       
-  #     # Django Configuration
-  #     DEBUG: ${DJANGO_DEBUG:-true}
-  #     SECRET_KEY: ${DJANGO_SECRET_KEY:-your-super-secret-django-key-change-in-production}
-  #     ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,django-core}
-  #     CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://frontend:3000}
+      # Django Configuration
+      DEBUG: ${DJANGO_DEBUG:-true}
+      SECRET_KEY: ${DJANGO_SECRET_KEY:-your-super-secret-django-key-change-in-production}
+      ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api-gateway}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://erp-frontend:3000}
       
-  #     # Environment
-  #     ENV: ${NODE_ENV:-development}
-  #   ports:
-  #     - "${DJANGO_PORT:-8000}:8000"
-  #   volumes:
-  #     - ../erp-django-core-app:/app
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     kafka:
-  #       condition: service_healthy
-  #     elasticsearch:
-  #       condition: service_healthy
-  #     mongodb:
-  #       condition: service_healthy
-  #     # auth-service:
-  #     #   condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #   networks:
-  #     - erp-network
-  #   profiles:
-  #     - full-stack
+      # Environment
+      ENV: ${NODE_ENV:-development}
+    ports:
+      - "${DJANGO_PORT:-8000}:8000"
+    volumes:
+      - ../erp-api-gateway:/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - erp-network
+    profiles:
+      - full-stack
 
   # Next.js Frontend - Main Web Application
-  # erp-frontend:
-  #   build:
-  #     context: ../erp-core-frontend
-  #     dockerfile: Dockerfile.dev
-  #   container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
-  #   environment:
-  #     # API Configuration
-  #     NEXT_PUBLIC_API_URL: ${EXTERNAL_API_URL:-http://localhost:8000}
-  #     NEXT_PUBLIC_GRAPHQL_URL: ${EXTERNAL_GRAPHQL_URL:-http://localhost:4000/graphql}
-  #     NEXT_PUBLIC_WS_URL: ${EXTERNAL_WS_URL:-http://localhost:3001}
+  erp-frontend:
+    build:
+      context: ../erp-frontend
+      dockerfile: Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
+    environment:
+      # API Configuration
+      NEXT_PUBLIC_API_URL: ${EXTERNAL_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_GRAPHQL_URL: ${EXTERNAL_GRAPHQL_URL:-http://localhost:4000/graphql}
+      NEXT_PUBLIC_WS_URL: ${EXTERNAL_WS_URL:-http://localhost:3001}
       
-  #     # Auth Configuration
-  #     NEXT_PUBLIC_AUTH_URL: http://localhost:${AUTH_SERVICE_HTTP_PORT:-8080}
-  #     NEXTAUTH_URL: http://localhost:${FRONTEND_PORT:-3000}
-  #     NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-super-secret-nextauth-key-change-in-production}
+      # Auth Configuration
+      NEXT_PUBLIC_AUTH_URL: http://localhost:${AUTH_SERVICE_HTTP_PORT:-8080}
+      NEXTAUTH_URL: http://localhost:${FRONTEND_PORT:-3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-super-secret-nextauth-key-change-in-production}
       
-  #     # Environment
-  #     NODE_ENV: ${NODE_ENV:-development}
-  #     NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-1}
-  #   ports:
-  #     - "${FRONTEND_PORT:-3000}:3000"
-  #   volumes:
-  #     - ../erp-core-frontend:/app
-  #     - /app/node_modules
-  #     - /app/.next
-  #   depends_on:
-  #     django-core:
-  #       condition: service_healthy
-  #     # auth-service:
-  #     #   condition: service_healthy
-  #     graphql-gateway:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #   networks:
-  #     - erp-network
-  #   profiles:
-  #     - full-stack
+      # Environment
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-1}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ../erp-frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+      # auth-service:
+      #   condition: service_healthy
+      graphql-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - erp-network
+    profiles:
+      - full-stack
 
   log-service:
     build:
@@ -622,7 +630,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
     ports:
       - "${LOG_SERVICE_HTTP_PORT:-8001}:8001"
-      - "${LOG_SERVICE_GRPC_PORT:-50051}:50051"
+      - "${LOG_SERVICE_GRPC_PORT:-50052}:50052"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -634,7 +642,7 @@ services:
       AUTH_SERVICE_GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       HTTP_PORT: 8001
-      GRPC_PORT: 50051
+      GRPC_PORT: 50052
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
       interval: 30s
@@ -648,8 +656,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      # auth-service:
-      #   condition: service_healthy
+      api-gateway:
+        condition: service_healthy
     networks:
       - erp-network
     profiles:
