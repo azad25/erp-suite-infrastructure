@@ -332,6 +332,34 @@ services:
       - api-layer
 
   # ============================================================================
+  # REVERSE PROXY (NGINX)
+  # ============================================================================
+  
+  # NGINX Reverse Proxy - Main entry point for external traffic
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-nginx-proxy
+    network_mode: "host"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - graphql-gateway
+      - api-gateway
+      - websocket-server
+      - erp-frontend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - full-stack
+      - proxy
+
+  # ============================================================================
   # SIMPLE LOGGING
   # ============================================================================
   # Note: Monitoring services (Prometheus, Grafana, Jaeger) have been removed
@@ -506,6 +534,8 @@ services:
       context: ../erp-api-gateway
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
+    command: >
+      sh -c "python manage.py migrate && gunicorn erp_core.wsgi:application --bind 0.0.0.0:8000"
     environment:
       # Database Configuration
       DB_HOST: postgres
@@ -613,8 +643,6 @@ services:
     depends_on:
       api-gateway:
         condition: service_healthy
-      # auth-service:
-      #   condition: service_healthy
       graphql-gateway:
         condition: service_healthy
     healthcheck:

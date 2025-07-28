@@ -1,41 +1,233 @@
 # ERP Suite Infrastructure Makefile
 
-.PHONY: help start-dev start stop reload logs services install-deps build-service rebuild-service pause resume restart full-stop
+.PHONY: help start stop restart reload pause resume build-service rebuild-service setup-proxy start-with-proxy start-dev check-ports prepare-environment configure-network detect-network-ip update-proxy-config create-nginx-config get-network-ip run start-services start-proxy-services init-dbs wait-for-service detect-os install-deps logs services status print-service-info expose-dev print-network-info print-info generate-ssl enable-https print-proxy-info macos-config macos-performance macos-clean build-all restart-proxy
 
 # Variables
 SERVICE ?=
 APP ?=
+HOST_IP ?= 0.0.0.0  # Expose to all interfaces, can be changed to specific IP
+ENVIRONMENT ?= development
+BUILD_TYPE ?= dev
 
 # Default target
 help:
-	@echo "ERP Suite Infrastructure - Simplified Commands"
+	@echo "ERP Suite Infrastructure - Complete Management Commands"
 	@echo ""
-	@echo "Essential Commands:"
-	@echo "  start-dev            - Start development infrastructure with sequential startup"
-	@echo "  start                - Start all services"
+	@echo "🚀 Core Commands:"
+	@echo "  start                - Complete startup (env prep, port check, network config, proxy setup, start services)"
+	@echo "  start-dev            - Development startup with sequential service loading"
+	@echo "  start-with-proxy     - Start with reverse proxy (recommended for network access)"
 	@echo "  stop                 - Stop all services and free ports"
-	@echo "  force-stop           - Force stop with aggressive cleanup (kills ALL Docker containers)"
-	@echo "  reload SERVICE=name  - Reload specific service (e.g., make reload SERVICE=postgres)"
+	@echo "  restart              - Complete restart (stop + start)"
+	@echo "  reload               - Reload specific service (e.g., make reload SERVICE=postgres)"
+	@echo "  pause                - Pause all services"
+	@echo "  resume               - Resume all paused services"
+	@echo ""
+	@echo "🔧 Setup Commands:"
+	@echo "  setup-proxy          - Setup reverse proxy configuration"
+	@echo "  configure-network    - Configure network exposure"
+	@echo "  prepare-environment  - Prepare environment files and directories"
+	@echo "  check-ports          - Check for port conflicts"
+	@echo ""
+	@echo "🔨 Build Commands:"
+	@echo "  build-service SERVICE= - Build specific service"
+	@echo "  rebuild-service SERVICE= - Rebuild and restart service"
+	@echo ""
+	@echo "🌐 Network Commands:"
+	@echo "  expose-dev           - Expose services to network"
+	@echo "  generate-ssl         - Generate SSL certificates"
+	@echo "  enable-https         - Enable HTTPS (requires SSL)"
+	@echo ""
+	@echo "📊 Status Commands:"
+	@echo "  status               - Quick status check"
+	@echo "  services             - Show running services"
 	@echo "  logs                 - Show logs from all services"
-	@echo "  logs APP=name        - Show logs from specific app (e.g., make logs APP=postgres)"
-	@echo "  services             - Show running services status"
-	@echo "  status               - Quick status check of all services"
+	@echo "  logs APP=name        - Show logs from specific app"
 	@echo ""
-	@echo "macOS Optimization Commands:"
+	@echo "🛠️  Utility Commands:"
+	@echo "  force-stop           - Force stop with aggressive cleanup"
+	@echo "  full-stop            - Complete shutdown with cleanup"
+	@echo "  install-deps SERVICE= - Install dependencies for service"
+	@echo ""
+	@echo "🍎 macOS Optimization:"
 	@echo "  macos-config         - Switch to macOS-optimized configuration"
-	@echo "  macos-performance    - Check Docker performance on macOS"
-	@echo "  macos-clean          - Clean up and optimize Docker for macOS"
-	@echo ""
-	@echo "Service Management:"
-	@echo "  install-deps SERVICE=    - Install dependencies for a service"
-	@echo "  build-service SERVICE=   - Build a specific service"
-	@echo "  rebuild-service SERVICE= - Rebuild and restart a service"
-	@echo ""
-	@echo "Service Control Commands:"
-	@echo "  pause               - Pause all services"
-	@echo "  resume             - Resume all paused services"
-	@echo "  restart            - Restart all services"
-	@echo "  full-stop          - Complete shutdown with cleanup"
+	@echo "  macos-performance    - Check Docker performance"
+	@echo "  macos-clean          - Clean up Docker for macOS"
+
+# ============================================================================
+# NETWORK DETECTION
+# ============================================================================
+
+# Internal target to ONLY get the local IP. No friendly messages.
+_get-local-ip:
+	@OS=$$(uname); \
+	ip=""; \
+	if [ "$$OS" = "Darwin" ]; then \
+		ip=$$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $$2}'); \
+	elif [ "$$OS" = "Linux" ]; then \
+		ip=$$(hostname -I | awk '{print $$1}'); \
+	elif [ "$$OS" = "Windows" ] || [ "$$(uname -s | cut -c1-5)" = "MINGW" ]; then \
+		ip=$$(ipconfig | grep "IPv4" | head -1 | awk '{print $$NF}'); \
+	else \
+		ip=$$(hostname -I | awk '{print $$1}' 2>/dev/null); \
+	fi; \
+	if [ -z "$$ip" ]; then \
+		echo "127.0.0.1"; \
+	else \
+		echo "$$ip"; \
+	fi
+
+# User-facing target to show detected IP
+detect-network-ip:
+	@echo "🔍 Detecting network IP..."
+	@ip=$$($(MAKE) -s _get-local-ip); \
+	if [ "$$ip" = "127.0.0.1" ]; then \
+		echo "⚠️  Could not detect network IP, using localhost"; \
+	else \
+		echo "✅ Detected network IP: $$ip"; \
+	fi
+
+# ============================================================================
+# CORE MANAGEMENT COMMANDS
+# ============================================================================
+
+# Stop all services and free ports
+stop:
+	@echo "🛑 Stopping ERP Suite infrastructure..."
+	@echo "📋 Stopping all Docker Compose services..."
+	@docker compose down --remove-orphans --volumes --timeout 30 2>/dev/null || true
+	@echo "🔍 Killing any remaining ERP Suite containers..."
+	@docker ps -a --filter "name=erp-suite" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
+	@echo "🧹 Cleaning up orphaned containers..."
+	@docker container prune -f 2>/dev/null || true
+	@echo "🌐 Cleaning up unused networks..."
+	@docker network prune -f 2>/dev/null || true
+	@echo "🔍 Checking for processes still using ERP ports..."
+	@OS=$$(uname); \
+	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	killed_processes=0; \
+	for port in $$ports; do \
+		if [ "$$OS" = "Darwin" ]; then \
+			pids=$$(lsof -ti :$$port 2>/dev/null || true); \
+		elif [ "$$OS" = "Linux" ]; then \
+			pids=$$(ss -tlnp | grep ":$$port " | sed 's/.*pid=\([0-9]*\).*/\1/' 2>/dev/null || true); \
+		fi; \
+		if [ -n "$$pids" ]; then \
+			echo "⚠️  Found processes using port $$port: $$pids"; \
+			for pid in $$pids; do \
+				if ps -p $$pid > /dev/null 2>&1; then \
+					echo "🔪 Killing process $$pid on port $$port"; \
+					kill -9 $$pid 2>/dev/null || true; \
+					killed_processes=$$((killed_processes + 1)); \
+				fi; \
+			done; \
+		fi; \
+	done; \
+	if [ $$killed_processes -gt 0 ]; then \
+		echo "⚡ Killed $$killed_processes processes"; \
+		sleep 2; \
+	fi
+	@echo "🔍 Final port check..."
+	@OS=$$(uname); \
+	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	still_in_use=0; \
+	for port in $$ports; do \
+		port_in_use=false; \
+		if [ "$$OS" = "Darwin" ]; then \
+			if lsof -i :$$port > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		elif [ "$$OS" = "Linux" ]; then \
+			if ss -tuln | grep ":$$port " > /dev/null 2>&1; then \
+				port_in_use=true; \
+			fi; \
+		fi; \
+		if [ "$$port_in_use" = "true" ]; then \
+			echo "⚠️  Port $$port is still in use"; \
+			still_in_use=$$((still_in_use + 1)); \
+		fi; \
+	done; \
+	if [ $$still_in_use -eq 0 ]; then \
+		echo "✅ All ERP Suite ports are now free!"; \
+	else \
+		echo "⚠️  $$still_in_use ports are still in use (may be system services)"; \
+	fi
+	@echo "✅ ERP Suite infrastructure stopped and ports freed!"
+
+# Force stop with aggressive cleanup
+force-stop:
+	@echo "💥 Force stopping ERP Suite infrastructure with aggressive cleanup..."
+	@echo "⚠️  This will kill ALL Docker containers and clean up everything!"
+	@read -p "Are you sure? This will stop ALL Docker containers (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "🔥 Stopping all Docker containers..."; \
+		docker stop $$(docker ps -q) 2>/dev/null || true; \
+		echo "🗑️  Removing all Docker containers..."; \
+		docker rm -f $$(docker ps -aq) 2>/dev/null || true; \
+		echo "🌐 Removing all Docker networks..."; \
+		docker network rm $$(docker network ls -q) 2>/dev/null || true; \
+		echo "💾 Removing all Docker volumes..."; \
+		docker volume rm $$(docker volume ls -q) 2>/dev/null || true; \
+		echo "🧹 Pruning Docker system..."; \
+		docker system prune -af --volumes 2>/dev/null || true; \
+		echo "✅ Aggressive cleanup complete!"; \
+	else \
+		echo "❌ Force stop cancelled"; \
+	fi
+
+
+# Pause all services
+pause:
+	@echo "⏸️  Pausing all ERP Suite services..."
+	@docker compose pause
+	@echo "✅ All services paused"
+
+# Resume all paused services
+resume:
+	@echo "▶️  Resuming all ERP Suite services..."
+	@docker compose unpause
+	@echo "✅ All services resumed"
+
+# Reload specific service
+reload:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make reload SERVICE=postgres"; \
+		exit 1; \
+	fi
+	@echo "🔄 Reloading $(SERVICE)..."
+	@docker compose restart $(SERVICE)
+	@echo "✅ $(SERVICE) reloaded"
+
+# Build specific service
+build-service:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make build-service SERVICE=frontend"; \
+		exit 1; \
+	fi
+	@echo "🔨 Building $(SERVICE)..."
+	@docker compose build $(SERVICE)
+	@echo "✅ $(SERVICE) built"
+
+# Rebuild and restart service
+rebuild-service:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make rebuild-service SERVICE=frontend"; \
+		exit 1; \
+	fi
+	@echo "🔨 Rebuilding $(SERVICE)..."
+	@docker compose stop $(SERVICE)
+	@docker compose rm -f $(SERVICE)
+	@docker compose build --no-cache $(SERVICE)
+	@docker compose up -d $(SERVICE)
+	@echo "✅ $(SERVICE) rebuilt and restarted"
+
+# Full stop with cleanup
+full-stop:
+	@echo "🛑 Complete shutdown..."
+	@docker compose down -v --remove-orphans
+	@docker system prune -f --volumes
+	@echo "✅ Complete shutdown finished"
+	@echo "💡 Run 'make start' to restart"
 
 # ============================================================================
 # DOCKER COMPOSE COMMANDS
@@ -99,7 +291,7 @@ check-ports:
 	@echo "🔍 Checking for port conflicts..."
 	@echo ""
 	@echo "📋 Required Ports:"
-	@OS=$$($(MAKE) detect-os); \
+	@OS=$$($(MAKE) -s detect-os); \
 	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	conflicts=0; \
 	for port_info in $$ports; do \
@@ -152,7 +344,6 @@ wait-for-service:
 		exit 1; \
 	fi
 	@echo "⏳ Waiting for $(SERVICE) to be healthy..."
-	@# Set different timeouts based on service type
 	@if [ "$(SERVICE)" = "kafka" ] || [ "$(SERVICE)" = "elasticsearch" ]; then \
 		timeout=300; \
 	elif [ "$(SERVICE)" = "kibana" ] || [ "$(SERVICE)" = "mongodb" ]; then \
@@ -195,32 +386,20 @@ init-dbs:
 	done
 	@echo "✅ Databases initialized!"
 
-# Create Kafka topics with enhanced timeout and retry logic
-# kafka-topics:
-# 	@echo "📝 Creating Kafka topics..."
-# 	@echo "⏳ Waiting for Kafka to be fully ready for topic operations..."
-# 	@sleep 15
-# 	@echo "🔍 Testing Kafka connectivity first..."
-# 	@if timeout 30 docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1; then \
-# 		echo "✅ Kafka is ready for topic operations"; \
-# 		topics="auth-events user-events business-events system-events"; \
-# 		for topic in $$topics; do \
-# 			echo "Creating topic: $$topic"; \
-# 			timeout 20 docker compose exec -T kafka kafka-topics --create --topic $$topic --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --if-not-exists > /dev/null 2>&1 && echo "✅ Topic $$topic created" || echo "⚠️ Topic $$topic already exists or creation failed"; \
-# 		done; \
-# 		echo "✅ Kafka topics initialization complete!"; \
-# 	else \
-# 		echo "⚠️ Kafka not ready after waiting, skipping topic creation"; \
-# 		echo "💡 You can create topics later with: make kafka-topics"; \
-# 		echo "✅ Continuing with infrastructure startup..."; \
-# 	fi
-
 # ============================================================================
-# ESSENTIAL COMMANDS
+# CORE STARTUP COMMANDS
 # ============================================================================
 
-# Start development infrastructure with sequential startup
-start-dev: prepare-environment check-ports
+# Complete startup with all preparations
+start: prepare-environment check-ports configure-network setup-proxy start-services print-proxy-info
+	@echo "✅ ERP Suite infrastructure started successfully!"
+
+# Development startup (sequential)
+start-dev: prepare-environment check-ports run print-dev
+	@echo "✅ ERP Suite development infrastructure started!"
+
+# Sequential startup for development
+run:
 	@echo "🚀 Starting ERP Suite infrastructure sequentially..."
 	@echo "This reduces resource load by starting services in dependency order"
 	@echo ""
@@ -276,159 +455,485 @@ start-dev: prepare-environment check-ports
 	@echo "🔄 Phase 8: Starting development tools..."
 	@docker compose --profile dev-tools up -d
 	@echo "✅ Phase 8 complete: Development tools ready"
-
 	@echo "🔄 Phase 9: Starting core application services..."
-
 	@echo "🔄 Configuring Database..."
 	@$(MAKE) init-dbs
-
 	@echo "🔄 Phase 9a: Starting Auth Service..."
 	@cd ../erp-auth-service && go mod tidy && go build && cd ..
 	@docker compose --profile full-stack up -d auth-service
 	@$(MAKE) wait-for-service SERVICE=auth-service
-
 	@echo "🔄 Phase 9b: Starting API Gateway..."
 	@docker compose --profile full-stack up -d api-gateway
 	@$(MAKE) wait-for-service SERVICE=api-gateway
-
 	@echo "🔄 Phase 9c: Starting Log Service..."
 	@docker compose --profile full-stack up -d log-service
 	@$(MAKE) wait-for-service SERVICE=log-service
-
 	@echo "🔄 Phase 10: Starting Frontend..."
 	@docker compose --profile full-stack up -d erp-frontend
 	@$(MAKE) wait-for-service SERVICE=erp-frontend
-
 	@echo "✅ Phase 9-10 complete: All core application services up and running..."
-
 	@echo ""
-
 	@echo "✅ ERP Infrastructure online"
-	@$(MAKE) print-info
-# Add later 	@$(MAKE) kafka-topics 
-# Start all services
-start: prepare-environment
-	@echo "🚀 Starting ERP Suite infrastructure..."
-	@echo "Checking Docker Compose configuration..."
-	@docker compose --profile infrastructure config > /dev/null || { echo "❌ Docker Compose configuration is invalid!"; exit 1; }
-	@echo "Starting containers..."
-	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools up -d || { echo "❌ Failed to start containers!"; exit 1; }
-	@$(MAKE) kafka-topics
+
+# Start with reverse proxy
+start-with-proxy: prepare-environment check-ports setup-proxy start-proxy-services print-proxy-info
+	@echo "✅ ERP Suite with reverse proxy started successfully!"
+
+# Start all services (standard)
+start-services:
+	@echo "🚀 Starting all ERP Suite services..."
+	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools --profile full-stack up -d
 	@$(MAKE) init-dbs
 	@echo "✅ All services started!"
-	@$(MAKE) print-info
 
-# Stop all services and free ports
-stop:
-	@echo "🛑 Stopping ERP Suite infrastructure..."
-	@echo "📋 Stopping all Docker Compose services..."
-	@docker compose down --remove-orphans --volumes --timeout 30 2>/dev/null || true
-	@echo "🔍 Killing any remaining ERP Suite containers..."
-	@docker ps -a --filter "name=erp-suite" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
-	@echo "🧹 Cleaning up orphaned containers..."
-	@docker container prune -f 2>/dev/null || true
-	@echo "🌐 Cleaning up unused networks..."
-	@docker network prune -f 2>/dev/null || true
-	@echo "🔍 Checking for processes still using ERP ports..."
-	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084 8080 8000 8001 3000"; \
-	killed_processes=0; \
-	for port in $$ports; do \
-		if [ "$$OS" = "Darwin" ]; then \
-			pids=$$(lsof -ti :$$port 2>/dev/null || true); \
-		elif [ "$$OS" = "Linux" ]; then \
-			pids=$$(ss -tlnp | grep ":$$port " | sed 's/.*pid=\([0-9]*\).*/\1/' 2>/dev/null || true); \
-		fi; \
-		if [ -n "$$pids" ]; then \
-			echo "⚠️  Found processes using port $$port: $$pids"; \
-			for pid in $$pids; do \
-				if ps -p $$pid > /dev/null 2>&1; then \
-					echo "🔪 Killing process $$pid on port $$port"; \
-					kill -9 $$pid 2>/dev/null || true; \
-					killed_processes=$$((killed_processes + 1)); \
-				fi; \
-			done; \
-		fi; \
-	done; \
-	if [ $$killed_processes -gt 0 ]; then \
-		echo "⚡ Killed $$killed_processes processes"; \
-		sleep 2; \
+# Start services with proxy (sequentially)
+start-proxy-services:
+	@echo "🚀 Starting ERP Suite services sequentially with reverse proxy..."
+	@echo "This reduces resource load by starting services in dependency order"
+	@echo ""
+	@echo "📋 Startup Sequence:"
+	@echo "  Phase 1: Core Databases (PostgreSQL, Redis)"
+	@echo "  Phase 2: Document & Vector Stores (MongoDB, Qdrant)"
+	@echo "  Phase 3: Message Broker (Kafka)"
+	@echo "  Phase 4: Search Engine (Elasticsearch)"
+	@echo "  Phase 5: API Layer (GraphQL Gateway, gRPC Registry)"
+	@echo "  Phase 6: WebSocket Server"
+	@echo "  Phase 7: Logging (Kibana)"
+	@echo "  Phase 8: Development Tools"
+	@echo "  Phase 9: Core Application Services"
+	@echo "  Phase 10: Reverse Proxy"
+	@echo ""
+	@echo "🔄 Phase 1: Starting core databases..."
+	@docker compose up -d postgres redis
+	@$(MAKE) wait-for-service SERVICE=postgres
+	@$(MAKE) wait-for-service SERVICE=redis
+	@echo "✅ Phase 1 complete: Core databases ready"
+	@sleep 2
+	@echo "🔄 Phase 2: Starting document and vector stores..."
+	@docker compose up -d mongodb qdrant
+	@$(MAKE) wait-for-service SERVICE=mongodb
+	@$(MAKE) wait-for-service SERVICE=qdrant
+	@echo "✅ Phase 2 complete: Document and vector stores ready"
+	@sleep 2
+	@echo "🔄 Phase 3: Starting message broker..."
+	@docker compose up -d kafka
+	@$(MAKE) wait-for-service SERVICE=kafka
+	@echo "✅ Phase 3 complete: Message broker ready"
+	@sleep 2
+	@echo "🔄 Phase 4: Starting search engine..."
+	@docker compose up -d elasticsearch
+	@$(MAKE) wait-for-service SERVICE=elasticsearch
+	@echo "✅ Phase 4 complete: Search engine ready"
+	@sleep 2
+	@echo "🔄 Phase 5: Starting API layer..."
+	@docker compose up -d grpc-registry
+	@$(MAKE) wait-for-service SERVICE=grpc-registry
+	@docker compose up -d graphql-gateway
+	@$(MAKE) wait-for-service SERVICE=graphql-gateway
+	@echo "✅ Phase 5 complete: API layer ready"
+	@sleep 2
+	@echo "🔄 Phase 6: Starting WebSocket server..."
+	@docker compose up -d websocket-server
+	@$(MAKE) wait-for-service SERVICE=websocket-server
+	@echo "✅ Phase 6 complete: WebSocket server ready"
+	@sleep 2
+	@echo "🔄 Phase 7: Starting logging services..."
+	@docker compose up -d kibana
+	@echo "✅ Phase 7 complete: Logging services ready"
+	@sleep 2
+	@echo "🔄 Phase 8: Starting development tools..."
+	@docker compose --profile dev-tools up -d
+	@echo "✅ Phase 8 complete: Development tools ready"
+	@echo "🔄 Phase 9: Starting core application services..."
+	@echo "🔄 Configuring Database..."
+	@$(MAKE) init-dbs
+	@echo "🔄 Phase 9a: Starting Auth Service..."
+	@cd ../erp-auth-service && go mod tidy && go build && cd ..
+	@docker compose --profile full-stack up -d auth-service
+	@$(MAKE) wait-for-service SERVICE=auth-service
+	@echo "🔄 Phase 9b: Starting API Gateway..."
+	@docker compose --profile full-stack up -d api-gateway
+	@$(MAKE) wait-for-service SERVICE=api-gateway
+	@echo "🔄 Phase 9c: Starting Log Service..."
+	@docker compose --profile full-stack up -d log-service
+	@$(MAKE) wait-for-service SERVICE=log-service
+	@echo "🔄 Phase 10: Starting Frontend..."
+	@docker compose --profile full-stack up -d erp-frontend
+	@$(MAKE) wait-for-service SERVICE=erp-frontend
+	@echo "✅ Phase 9-10 complete: All core application services up and running..."
+	@echo ""
+	@echo "🔄 Phase 11: Starting Reverse Proxy..."
+	@docker compose --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
+	@$(MAKE) wait-for-service SERVICE=nginx-proxy
+	@echo "✅ Phase 11 complete: Reverse proxy is ready."
+	@echo "✅ All services with proxy started!"
+
+
+# ============================================================================
+# SETUP COMMANDS
+# ============================================================================
+
+# Setup reverse proxy only
+setup-proxy:
+	@echo "🔧 Setting up reverse proxy configuration..."
+	@mkdir -p nginx/conf.d nginx/ssl
+	@if [ ! -f nginx/.htpasswd ]; then \
+		echo "🔐 Creating basic auth file for admin tools..."; \
+		echo "admin:$$(openssl passwd -apr1 admin123)" > nginx/.htpasswd; \
+		echo "✅ Admin credentials: admin/admin123"; \
 	fi
-	@echo "🔍 Final port check..."
-	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084 8080 8000 8001 3000"; \
-	still_in_use=0; \
-	for port in $$ports; do \
-		port_in_use=false; \
-		if [ "$$OS" = "Darwin" ]; then \
-			if lsof -i :$$port > /dev/null 2>&1; then \
-				port_in_use=true; \
-			fi; \
-		elif [ "$$OS" = "Linux" ]; then \
-			if ss -tuln | grep ":$$port " > /dev/null 2>&1; then \
-				port_in_use=true; \
-			fi; \
-		fi; \
-		if [ "$$port_in_use" = "true" ]; then \
-			echo "⚠️  Port $$port is still in use"; \
-			still_in_use=$$((still_in_use + 1)); \
-		fi; \
-	done; \
-	if [ $$still_in_use -eq 0 ]; then \
-		echo "✅ All ERP Suite ports are now free!"; \
+	@echo "🌐 Configuring proxy for detected network..."
+	@$(MAKE) update-proxy-config
+	@echo "✅ Reverse proxy setup complete!"
+
+# Update proxy configuration with detected IP
+update-proxy-config:
+	@echo "📝 Updating NGINX configuration with network IP..."
+	@network_ip=$$($(MAKE) -s _get-local-ip); \
+	if [ -f nginx/nginx.conf ]; then \
+		sed -i.bak "s#server_name .*;#server_name $$network_ip;#g" nginx/nginx.conf; \
+		echo "✅ Updated NGINX server_name to: $$network_ip"; \
 	else \
-		echo "⚠️  $$still_in_use ports are still in use (may be system services)"; \
+		echo "⚠️  nginx/nginx.conf not found, creating from template..."; \
+		$(MAKE) create-nginx-config; \
 	fi
-	@echo "🛑 ERP Suite infrastructure offlione and ports freed!"
 
-# Force stop with aggressive cleanup
-force-stop:
-	@echo "💥 Force stopping ERP Suite infrastructure with aggressive cleanup..."
-	@echo "⚠️  This will kill ALL Docker containers and clean up everything!"
-	@read -p "Are you sure? This will stop ALL Docker containers (y/N): " confirm; \
-	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		echo "🔥 Stopping all Docker containers..."; \
-		docker stop $$(docker ps -q) 2>/dev/null || true; \
-		echo "🗑️  Removing all Docker containers..."; \
-		docker rm -f $$(docker ps -aq) 2>/dev/null || true; \
-		echo "🌐 Removing all Docker networks..."; \
-		docker network rm $$(docker network ls -q) 2>/dev/null || true; \
-		echo "💾 Removing all Docker volumes..."; \
-		docker volume rm $$(docker volume ls -q) 2>/dev/null || true; \
-		echo "🧹 Pruning Docker system..."; \
-		docker system prune -af --volumes 2>/dev/null || true; \
-		echo "✅ Aggressive cleanup complete!"; \
+# Create NGINX configuration if it doesn't exist
+create-nginx-config:
+	@echo "📝 Creating NGINX configuration..."
+	@network_ip=$$($(MAKE) -s _get-local-ip); \
+	mkdir -p nginx; \
+	cat > nginx/nginx.conf << 'EOF' ; \
+user nginx; \
+worker_processes auto; \
+error_log /var/log/nginx/error.log warn; \
+pid /var/run/nginx.pid; \
+\
+events { \
+    worker_connections 1024; \
+    use epoll; \
+    multi_accept on; \
+} \
+\
+http { \
+    include /etc/nginx/mime.types; \
+    default_type application/octet-stream; \
+\
+    # Logging \
+    log_format main '$$remote_addr - $$remote_user [$$time_local] "$$request" ' \
+                    '$$status $$body_bytes_sent "$$http_referer" ' \
+                    '"$$http_user_agent" "$$http_x_forwarded_for"'; \
+    access_log /var/log/nginx/access.log main; \
+\
+    # Performance \
+    sendfile on; \
+    tcp_nopush on; \
+    tcp_nodelay on; \
+    keepalive_timeout 65; \
+    types_hash_max_size 2048; \
+    client_max_body_size 100M; \
+\
+    # Gzip compression \
+    gzip on; \
+    gzip_vary on; \
+    gzip_min_length 1024; \
+    gzip_proxied any; \
+    gzip_comp_level 6; \
+    gzip_types \
+        text/plain \
+        text/css \
+        text/xml \
+        text/javascript \
+        application/json \
+        application/javascript \
+        application/xml+rss \
+        application/atom+xml \
+        image/svg+xml; \
+\
+    # Rate limiting \
+    limit_req_zone $$binary_remote_addr zone=api:10m rate=10r/s; \
+    limit_req_zone $$binary_remote_addr zone=admin:10m rate=5r/s; \
+\
+    # Upstream definitions \
+    upstream graphql_backend { \
+        server graphql-gateway:4000; \
+    } \
+\
+    upstream api_gateway_backend { \
+        server api-gateway:8000; \
+    } \
+\
+    upstream websocket_backend { \
+        server websocket-server:3001; \
+    } \
+\
+    upstream frontend_backend { \
+        server erp-frontend:3000; \
+    } \
+\
+    upstream auth_service_backend { \
+        server auth-service:8080; \
+    } \
+\
+    upstream log_service_backend { \
+        server log-service:8001; \
+    } \
+\
+    # Development tools upstreams \
+    upstream pgadmin_backend { \
+        server pgadmin:80; \
+    } \
+\
+    upstream mongo_express_backend { \
+        server mongo-express:8081; \
+    } \
+\
+    upstream redis_commander_backend { \
+        server redis-commander:8081; \
+    } \
+\
+    upstream kafka_ui_backend { \
+        server kafka-ui:8080; \
+    } \
+\
+    upstream kibana_backend { \
+        server kibana:5601; \
+    } \
+\
+    upstream consul_backend { \
+        server grpc-registry:8500; \
+    } \
+\
+    # Main server block \
+    server { \
+        listen 80; \
+        server_name _; \
+\
+        # Security headers \
+        add_header X-Frame-Options "SAMEORIGIN" always; \
+        add_header X-Content-Type-Options "nosniff" always; \
+        add_header X-XSS-Protection "1; mode=block" always; \
+        add_header Referrer-Policy "no-referrer-when-downgrade" always; \
+        add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always; \
+\
+        # Health check \
+        location /health { \
+            access_log off; \
+            return 200 "healthy\n"; \
+            add_header Content-Type text/plain; \
+        } \
+\
+        # Frontend (Next.js) \
+        location / { \
+            proxy_pass http://frontend_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Upgrade $$http_upgrade; \
+            proxy_set_header Connection 'upgrade'; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+            proxy_cache_bypass $$http_upgrade; \
+        } \
+\
+        # GraphQL API \
+        location /graphql { \
+            limit_req zone=api burst=20 nodelay; \
+            proxy_pass http://graphql_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+        } \
+\
+        # GraphQL Playground \
+        location /playground { \
+            proxy_pass http://graphql_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+        } \
+\
+        # Django API Gateway \
+        location /api/v1/ { \
+            limit_req zone=api burst=20 nodelay; \
+            proxy_pass http://api_gateway_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+        } \
+\
+        # Auth Service \
+        location /auth/ { \
+            limit_req zone=api burst=20 nodelay; \
+            proxy_pass http://auth_service_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+        } \
+\
+        # Log Service \
+        location /logs/ { \
+            limit_req zone=api burst=20 nodelay; \
+            proxy_pass http://log_service_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+        } \
+\
+        # WebSocket \
+        location /socket.io/ { \
+            proxy_pass http://websocket_backend; \
+            proxy_http_version 1.1; \
+            proxy_set_header Upgrade $$http_upgrade; \
+            proxy_set_header Connection "upgrade"; \
+            proxy_set_header Host $$host; \
+            proxy_set_header X-Real-IP $$remote_addr; \
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
+            proxy_set_header X-Forwarded-Proto $$scheme; \
+        } \
+\
+        # Admin tools (protected with basic auth) \
+        location /admin/ { \
+            limit_req zone=admin burst=10 nodelay; \
+            auth_basic "Admin Area"; \
+            auth_basic_user_file /etc/nginx/.htpasswd; \
+\
+            # pgAdmin \
+            location /admin/pgadmin/ { \
+                proxy_pass http://pgadmin_backend; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $$host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+            } \
+\
+            # Mongo Express \
+            location /admin/mongo/ { \
+                proxy_pass http://mongo_express_backend; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+            } \
+\
+            # Redis Commander \
+            location /admin/redis/ { \
+                proxy_pass http://redis_commander_backend; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+            } \
+\
+            # Kafka UI \
+            location /admin/kafka/ { \
+                proxy_pass http://kafka_ui_backend; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+            } \
+\
+            # Kibana \
+            location /admin/kibana/ { \
+                proxy_pass http://kibana_backend; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+            } \
+\
+            # Consul \
+            location /admin/consul/ { \
+                proxy_pass http://consul_backend; \
+                proxy_http_version 1.1; \
+                proxy_set_header Host $host; \
+                proxy_set_header X-Real-IP $remote_addr; \
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+                proxy_set_header X-Forwarded-Proto $scheme; \
+            } \
+        } \
+    } \
+} \
+EOF
+	sed -i "s/server_name _;/server_name $$network_ip;/g" nginx/nginx.conf; \
+	echo "✅ Created NGINX configuration for $$network_ip"
+
+# Configure network exposure
+configure-network:
+	@echo "🌐 Configuring network exposure..."
+	@network_ip=$$($(MAKE) -s _get-local-ip); \
+	if [ "$$network_ip" != "127.0.0.1" ]; then \
+		echo "✅ Detected network IP: $$network_ip"; \
+		echo "📝 Updating environment configuration..."; \
+		if [ -f .env ]; then \
+			sed -i.bak \
+				-e "s#localhost:#$$network_ip:#g" \
+				-e "s#127.0.0.1:#$$network_ip:#g" \
+				.env; \
+			echo "✅ Network configuration updated for $$network_ip"; \
+		else \
+			echo "⚠️  No .env file found, creating from example..."; \
+			cp .env.example .env 2>/dev/null || echo "No .env.example found"; \
+		fi; \
 	else \
-		echo "❌ Force stop cancelled"; \
+		echo "⚠️  Using localhost for network configuration"; \
 	fi
 
-# Reload specific service
-reload:
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "❌ SERVICE parameter required. Usage: make reload SERVICE=postgres"; \
-		exit 1; \
-	fi
-	@echo "🔄 Reloading $(SERVICE) and checking dependents..."
-	@docker compose restart $(SERVICE)
-	@$(MAKE) wait-for-service SERVICE=$(SERVICE)
-	@echo "✅ $(SERVICE) reloaded successfully"
-	@if [ "$(SERVICE)" = "postgres" ]; then \
-		echo "🔄 Restarting services that depend on PostgreSQL..."; \
-		docker compose restart graphql-gateway pgadmin; \
-	elif [ "$(SERVICE)" = "redis" ]; then \
-		echo "🔄 Restarting services that depend on Redis..."; \
-		docker compose restart graphql-gateway websocket-server redis-commander; \
-	elif [ "$(SERVICE)" = "mongodb" ]; then \
-		echo "🔄 Restarting services that depend on MongoDB..."; \
-		docker compose restart mongo-express; \
-	elif [ "$(SERVICE)" = "elasticsearch" ]; then \
-		echo "🔄 Restarting services that depend on Elasticsearch..."; \
-		docker compose restart kibana; \
-	elif [ "$(SERVICE)" = "kafka" ]; then \
-		echo "🔄 Restarting services that depend on Kafka..."; \
-		docker compose restart kafka-ui; \
-	fi
-	@echo "✅ Dependent services restarted"
+# ============================================================================
+# RESTART COMMANDS
+# ============================================================================
+
+# Complete restart
+restart:
+	@echo "🔄 Restarting ERP Suite infrastructure..."
+	@echo "⏸️  Step 1: Stopping services..."
+	@$(MAKE) stop
+	@echo "⌛ Waiting for cleanup..."
+	@sleep 5
+	@echo "🚀 Step 2: Starting services..."
+	@$(MAKE) start
+	@echo "✅ Restart complete"
+
+# Restart with proxy
+restart-proxy:
+	@echo "🔄 Restarting ERP Suite with reverse proxy..."
+	@echo "⏸️  Step 1: Stopping services..."
+	@$(MAKE) stop
+	@echo "⌛ Waiting for cleanup..."
+	@sleep 5
+	@echo "🚀 Step 2: Starting services with proxy..."
+	@$(MAKE) start-with-proxy
+	@echo "✅ Restart with proxy complete"
+
+# ============================================================================
+# BUILD COMMANDS
+# ============================================================================
+
+# Build all services
+build-all:
+	@echo "🔨 Building all ERP Suite services..."
+	@docker compose build --no-cache
+	@echo "✅ All services built successfully"
+
+# ============================================================================
+# UTILITY COMMANDS
+# ============================================================================
 
 # Install dependencies for a specific service
 install-deps:
@@ -444,122 +949,12 @@ install-deps:
 			cd ../erp-auth-service && go mod tidy ;; \
 		"api-gateway") \
 			cd ../erp-api-gateway && poetry install ;; \
+		"log-service") \
+			cd ../erp-log-viewer-service && go mod tidy ;; \
 		*) \
 			echo "❌ Unknown service: $(SERVICE)" && exit 1 ;; \
 	esac
 	@echo "✅ Dependencies installed for $(SERVICE)"
-
-# Build a specific service
-build-service:
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "❌ SERVICE parameter required. Usage: make build-service SERVICE=frontend"; \
-		exit 1; \
-	fi
-	@echo "🔨 Building $(SERVICE)..."
-	@docker compose build $(SERVICE)
-	@echo "✅ $(SERVICE) built successfully"
-
-# Rebuild a service (with dependencies)
-rebuild-service:
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "❌ SERVICE parameter required. Usage: make rebuild-service SERVICE=frontend"; \
-		exit 1; \
-	fi
-	@echo "🔄 Rebuilding $(SERVICE)..."
-	@$(MAKE) stop-service SERVICE=$(SERVICE)
-	@$(MAKE) install-deps SERVICE=$(SERVICE)
-	@$(MAKE) build-service SERVICE=$(SERVICE)
-	@docker compose up -d $(SERVICE)
-	@$(MAKE) wait-for-service SERVICE=$(SERVICE)
-	@echo "✅ $(SERVICE) rebuilt and started"
-
-# Pause all services
-pause:
-	@echo "⏸️  Pausing services..."
-	@echo "📋 Pausing in reverse dependency order..."
-	
-	@echo "Phase 1: Pausing application services..."
-	@docker compose --profile full-stack pause erp-frontend api-gateway auth-service log-service
-	
-	@echo "Phase 2: Pausing development tools..."
-	@docker compose --profile dev-tools pause
-	
-	@echo "Phase 3: Pausing API layer..."
-	@docker compose pause websocket-server graphql-gateway grpc-registry
-	
-	@echo "Phase 4: Pausing core services..."
-	@docker compose pause elasticsearch kibana kafka mongodb qdrant postgres redis
-	
-	@echo "✅ All services paused. Use 'make resume' to resume"
-
-# Resume all services
-resume:
-	@echo "▶️  Resuming services..."
-	@echo "📋 Resuming in dependency order..."
-	
-	@echo "Phase 1: Resuming core services..."
-	@docker compose unpause postgres redis
-	@$(MAKE) wait-for-service SERVICE=postgres
-	@$(MAKE) wait-for-service SERVICE=redis
-	
-	@echo "Phase 2: Resuming databases..."
-	@docker compose unpause mongodb qdrant
-	@$(MAKE) wait-for-service SERVICE=mongodb
-	
-	@echo "Phase 3: Resuming messaging and search..."
-	@docker compose unpause kafka elasticsearch
-	@$(MAKE) wait-for-service SERVICE=kafka
-	@$(MAKE) wait-for-service SERVICE=elasticsearch
-	
-	@echo "Phase 4: Resuming API layer..."
-	@docker compose unpause grpc-registry graphql-gateway websocket-server
-	
-	@echo "Phase 5: Resuming monitoring..."
-	@docker compose unpause kibana
-	
-	@echo "Phase 6: Resuming development tools..."
-	@docker compose --profile dev-tools unpause
-	
-	@echo "Phase 7: Resuming application services..."
-	@docker compose --profile full-stack unpause auth-service api-gateway log-service erp-frontend
-	
-	@echo "✅ All services resumed"
-	@$(MAKE) print-info
-
-# Restart all services
-restart:
-	@echo "🔄 Restarting all services..."
-	@echo "⏸️  Step 1: Stopping services..."
-	@$(MAKE) stop
-	
-	@echo "⌛ Waiting for cleanup..."
-	@sleep 5
-	
-	@echo "🚀 Step 2: Starting services..."
-	@$(MAKE) start-dev
-	
-	@echo "✅ Restart complete"
-	@$(MAKE) print-info
-
-# Complete stop with cleanup
-full-stop:
-	@echo "🛑 Performing complete shutdown..."
-	@echo "⚠️  This will stop all services and clean up resources"
-	@read -p "Are you sure? (y/N): " confirm; \
-	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
-		echo "📋 Step 1: Stopping services..."; \
-		$(MAKE) stop; \
-		echo "🧹 Step 2: Cleaning Docker resources..."; \
-		docker system prune -f --volumes; \
-		echo "🗑️  Step 3: Removing unused images..."; \
-		docker image prune -f; \
-		echo "💾 Step 4: Cleaning volumes..."; \
-		docker volume prune -f; \
-		echo "✅ Complete shutdown finished"; \
-		echo "💡 To restart, use 'make start-dev'"; \
-	else \
-		echo "❌ Operation cancelled"; \
-	fi
 
 # Show logs from all services or specific app
 logs:
@@ -587,6 +982,8 @@ services:
 	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "Elasticsearch: "
 	@curl -s http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@printf "NGINX Proxy: "
+	@curl -s http://localhost/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 
 # Quick status check
 status:
@@ -618,57 +1015,174 @@ status:
 	fi
 	@echo ""
 	@echo "🌐 Port Status:"
-	@OS=$$(uname); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
-	for port_info in $$ports; do \
-		port=$$(echo $$port_info | cut -d: -f1); \
-		service=$$(echo $$port_info | cut -d: -f2); \
+	@OS=$(uname); \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
+	for port_info in $ports; do \
+		port=$(echo $port_info | cut -d: -f1); \
+		service=$(echo $port_info | cut -d: -f2); \
 		port_in_use=false; \
-		if [ "$$OS" = "Darwin" ]; then \
-			if lsof -i :$$port > /dev/null 2>&1; then \
+		if [ "$OS" = "Darwin" ]; then \
+			if lsof -i :$port > /dev/null 2>&1; then \
 				port_in_use=true; \
 			fi; \
-		elif [ "$$OS" = "Linux" ]; then \
-			if ss -tuln | grep ":$$port " > /dev/null 2>&1; then \
+		elif [ "$OS" = "Linux" ]; then \
+			if ss -tuln | grep ":$port " > /dev/null 2>&1; then \
 				port_in_use=true; \
 			fi; \
 		fi; \
-		if [ "$$port_in_use" = "true" ]; then \
-			echo "✅ Port $$port ($$service): in use"; \
+		if [ "$port_in_use" = "true" ]; then \
+			echo "✅ Port $port ($service): in use"; \
 		else \
-			echo "❌ Port $$port ($$service): free"; \
+			echo "❌ Port $port ($service): free"; \
 		fi; \
 	done
 
 # Print service information
-print-info:
-	@echo ""
-	@echo "📋 API Layer:"
-	@echo "  GraphQL Gateway:     http://localhost:4000/graphql"
-	@echo "  GraphQL Playground:  http://localhost:4000/playground"
-	@echo "  gRPC Registry:       http://localhost:8500"
-	@echo ""
-	@echo "📋 Infrastructure Services:"
-	@echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"
-	@echo "  MongoDB:             localhost:27017 (root/password)"
-	@echo "  Redis:               localhost:6379 (password: redispassword)"
-	@echo "  Qdrant:              http://localhost:6333"
-	@echo "  Kafka:               localhost:9092"
-	@echo "  Elasticsearch:       http://localhost:9200 (elastic/password)"
-	@echo "  WebSocket:           http://localhost:3001"
-	@echo ""
-	@echo "📋 Development Tools:"
-	@echo "  pgAdmin:             http://localhost:8081 (admin@erp.com/admin)"
-	@echo "  Mongo Express:       http://localhost:8082 (admin/pass)"
-	@echo "  Redis Commander:     http://localhost:8083"
-	@echo "  Kafka UI:            http://localhost:8084"
-	@echo "  Kibana:              http://localhost:5601 (elastic/password)"
-
-	@echo "📋 Application Services:"
+print-service-info:
+	@echo "📋 ERP Suite Service Information:"
+	@echo "================================="
 	@echo "  Auth Service:        http://localhost:8080/api/v1/ (HTTP) | gRPC: localhost:50051"
 	@echo "  API Gateway:         http://localhost:8000/api/v1/ (Django)"
 	@echo "  Log Service:         http://localhost:8001/api/v1/ (HTTP) | gRPC: localhost:50052"
 	@echo "  Frontend:            http://localhost:3000 (Next.js)"
+	@echo ""
+	@$(MAKE) print-info
+
+# Expose services to network (use with caution)
+expose-dev:
+	@echo "🌐 Exposing development services to network..."
+	@echo "⚠️  Warning: This will make services accessible from other devices"
+	@read -p "Enter host IP (default: 0.0.0.0): " ip; \
+	if [ -n "$$ip" ]; then \
+		HOST_IP=$$ip; \
+	fi; \
+	echo "📝 Updating environment configuration..."; \
+	sed -i.bak \
+		-e "s/localhost:/$${HOST_IP}:/g" \
+		-e "s/127.0.0.1:/$${HOST_IP}:/g" \
+		.env; \
+	echo "✅ Services will be exposed on $${HOST_IP}"
+	@echo "🔄 Restart required: run 'make restart' to apply changes"
+
+print-dev:
+	echo "🌐 Network Access:"; \
+	echo "📋 API Layer:"; \
+	echo "  GraphQL Gateway:     http://localhost:4000/graphql"; \
+	echo "  GraphQL Playground:  http://localhost:4000/playground"; \
+	echo "  gRPC Registry:       http://localhost:8500"; \
+	echo ""; \
+	echo "📋 Infrastructure Services:"; \
+	echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"; \
+	echo "  MongoDB:             localhost:27017 (root/password)"; \
+	echo "  Redis:               localhost:6379 (password: redispassword)"; \
+	echo "  Qdrant:              http://localhost:6333"; \
+	echo "  Kafka:               localhost:9092"; \
+	echo "  Elasticsearch:       http://localhost:9200 (elastic/password)"; \
+	echo "  WebSocket:           http://localhost:3001"; \
+	echo ""; \
+	echo "📋 Development Tools:"; \
+	echo "  pgAdmin:             http://localhost:8081 (admin@erp.com/admin)"; \
+	echo "  Mongo Express:       http://localhost:8082 (admin/pass)"; \
+	echo "  Redis Commander:     http://localhost:8083"; \
+	echo "  Kafka UI:            http://localhost:8084"; \
+	echo "  Kibana:              http://localhost:5601 (elastic/password)"; \
+	echo "📋 Application Services:"; \
+	echo "  Auth Service:        http://localhost:8080/api/v1/ (HTTP) | gRPC: $$network_ip:50051"; \
+	echo "  API Gateway:         http://localhost:8000/api/v1/ (Django)"; \
+	echo "  Log Service:         http://localhost:8001/api/v1/ (HTTP) | gRPC: $$network_ip:50052"; \
+	echo "  Frontend:            http://localhost:3000 (Next.js)";
+
+print-info:
+	@network_ip=$$($(MAKE) -s _get-local-ip); \
+	echo ""; \
+	echo "🌐 Network Access:"; \
+	echo "  Local Network IP: $$network_ip"; \
+	echo "  Replace 'localhost' with '$$network_ip' to access from other devices"; \
+	echo ""; \
+	echo "📋 API Layer:"; \
+	echo "  GraphQL Gateway:     http://$$network_ip:4000/graphql"; \
+	echo "  GraphQL Playground:  http://$$network_ip:4000/playground"; \
+	echo "  gRPC Registry:       http://$$network_ip:8500"; \
+	echo ""; \
+	echo "📋 Infrastructure Services:"; \
+	echo "  PostgreSQL:          $$network_ip:5432 (postgres/postgres)"; \
+	echo "  MongoDB:             $$network_ip:27017 (root/password)"; \
+	echo "  Redis:               $$network_ip:6379 (password: redispassword)"; \
+	echo "  Qdrant:              http://$$network_ip:6333"; \
+	echo "  Kafka:               $$network_ip:9092"; \
+	echo "  Elasticsearch:       http://$$network_ip:9200 (elastic/password)"; \
+	echo "  WebSocket:           http://$$network_ip:3001"; \
+	echo ""; \
+	echo "📋 Development Tools:"; \
+	echo "  pgAdmin:             http://$$network_ip:8081 (admin@erp.com/admin)"; \
+	echo "  Mongo Express:       http://$$network_ip:8082 (admin/pass)"; \
+	echo "  Redis Commander:     http://$$network_ip:8083"; \
+	echo "  Kafka UI:            http://$$network_ip:8084"; \
+	echo "  Kibana:              http://$$network_ip:5601 (elastic/password)"; \
+	echo "📋 Application Services:"; \
+	echo "  Auth Service:        http://$$network_ip:8080/api/v1/ (HTTP) | gRPC: $$network_ip:50051"; \
+	echo "  API Gateway:         http://$$network_ip:8000/api/v1/ (Django)"; \
+	echo "  Log Service:         http://$$network_ip:8001/api/v1/ (HTTP) | gRPC: $$network_ip:50052"; \
+	echo "  Frontend:            http://$$network_ip:3000 (Next.js)";
+
+# ============================================================================
+# REVERSE PROXY COMMANDS
+# ============================================================================
+
+# Generate SSL certificates (self-signed for development)
+generate-ssl:
+	@echo "🔐 Generating self-signed SSL certificates..."
+	@mkdir -p nginx/ssl
+	@openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+		-keyout nginx/ssl/key.pem \
+		-out nginx/ssl/cert.pem \
+		-subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+	@echo "✅ SSL certificates generated!"
+	@echo "⚠️  These are self-signed certificates for development only"
+
+# Enable HTTPS (requires SSL certificates)
+enable-https:
+	@echo "🔐 Enabling HTTPS..."
+	@if [ ! -f nginx/ssl/cert.pem ] || [ ! -f nginx/ssl/key.pem ]; then \
+		echo "❌ SSL certificates not found. Run 'make generate-ssl' first"; \
+		exit 1; \
+	fi
+	@echo "📝 Updating NGINX configuration for HTTPS..."
+	@sed -i 's/# server {/server {/g' nginx/nginx.conf
+	@sed -i 's/#     listen 443 ssl http2;/    listen 443 ssl http2;/g' nginx/nginx.conf
+	@sed -i 's/#     server_name your-domain.com;/    server_name _;/g' nginx/nginx.conf
+	@sed -i 's/#     ssl_certificate \/etc\/nginx\/ssl\/cert.pem;/    ssl_certificate \/etc\/nginx\/ssl\/cert.pem;/g' nginx/nginx.conf
+	@sed -i 's/#     ssl_certificate_key \/etc\/nginx\/ssl\/key.pem;/    ssl_certificate_key \/etc\/nginx\/ssl\/key.pem;/g' nginx/nginx.conf
+	@echo "✅ HTTPS enabled! Restart with 'make restart'"
+
+# Print proxy information
+print-proxy-info:
+	@network_ip=$$($(MAKE) -s _get-local-ip); \
+	echo ""; \
+	echo "🌐 Reverse Proxy Information"; \
+	echo "============================"; \
+	echo "  Server IP: $$network_ip"; \
+	echo "  HTTP Port: 80"; \
+	echo "  HTTPS Port: 443 (if enabled)"; \
+	echo ""; \
+	echo "📋 Public Endpoints:"; \
+	echo "  Frontend:           http://$$network_ip/"; \
+	echo "  GraphQL API:        http://$$network_ip/graphql"; \
+	echo "  GraphQL Playground: http://$$network_ip/playground"; \
+	echo "  Django API:         http://$$network_ip/api/v1/"; \
+	echo "  Auth Service:       http://$$network_ip/auth/"; \
+	echo "  Log Service:        http://$$network_ip/logs/"; \
+	echo "  WebSocket:          ws://$$network_ip/socket.io/"; \
+	echo ""; \
+	echo "🔧 Admin Tools (admin/admin123):"; \
+	echo "  pgAdmin:            http://$$network_ip/admin/pgadmin/"; \
+	echo "  Mongo Express:      http://$$network_ip/admin/mongo/"; \
+	echo "  Redis Commander:    http://$$network_ip/admin/redis/"; \
+	echo "  Kafka UI:           http://$$network_ip/admin/kafka/"; \
+	echo "  Kibana:             http://$$network_ip/admin/kibana/"; \
+	echo "  Consul:             http://$$network_ip/admin/consul/"; \
+	echo ""; \
+	echo "💡 Health Check: http://$$network_ip/health"
 
 # ============================================================================
 # MACOS OPTIMIZED COMMANDS
@@ -721,3 +1235,4 @@ macos-clean:
 	@echo "💡 Next steps:"
 	@echo "  • Restart Docker Desktop"
 	@echo "  • Run 'make start-dev' for optimized startup"
+
