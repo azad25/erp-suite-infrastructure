@@ -1,6 +1,6 @@
 # ERP Suite Infrastructure Makefile
 
-.PHONY: help start-dev start stop reload logs services
+.PHONY: help start-dev start stop reload logs services install-deps build-service rebuild-service pause resume restart full-stop
 
 # Variables
 SERVICE ?=
@@ -25,6 +25,17 @@ help:
 	@echo "  macos-config         - Switch to macOS-optimized configuration"
 	@echo "  macos-performance    - Check Docker performance on macOS"
 	@echo "  macos-clean          - Clean up and optimize Docker for macOS"
+	@echo ""
+	@echo "Service Management:"
+	@echo "  install-deps SERVICE=    - Install dependencies for a service"
+	@echo "  build-service SERVICE=   - Build a specific service"
+	@echo "  rebuild-service SERVICE= - Rebuild and restart a service"
+	@echo ""
+	@echo "Service Control Commands:"
+	@echo "  pause               - Pause all services"
+	@echo "  resume             - Resume all paused services"
+	@echo "  restart            - Restart all services"
+	@echo "  full-stop          - Complete shutdown with cleanup"
 
 # ============================================================================
 # DOCKER COMPOSE COMMANDS
@@ -272,6 +283,7 @@ start-dev: prepare-environment check-ports
 	@$(MAKE) init-dbs
 
 	@echo "🔄 Phase 9a: Starting Auth Service..."
+	@cd ../erp-auth-service && go mod tidy && go build && cd ..
 	@docker compose --profile full-stack up -d auth-service
 	@$(MAKE) wait-for-service SERVICE=auth-service
 
@@ -418,13 +430,144 @@ reload:
 	fi
 	@echo "✅ Dependent services restarted"
 
+# Install dependencies for a specific service
+install-deps:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make install-deps SERVICE=frontend"; \
+		exit 1; \
+	fi
+	@echo "📦 Installing dependencies for $(SERVICE)..."
+	@case "$(SERVICE)" in \
+		"frontend") \
+			cd ../erp-frontend && npm install ;; \
+		"auth-service") \
+			cd ../erp-auth-service && go mod tidy ;; \
+		"api-gateway") \
+			cd ../erp-api-gateway && poetry install ;; \
+		*) \
+			echo "❌ Unknown service: $(SERVICE)" && exit 1 ;; \
+	esac
+	@echo "✅ Dependencies installed for $(SERVICE)"
+
+# Build a specific service
+build-service:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make build-service SERVICE=frontend"; \
+		exit 1; \
+	fi
+	@echo "🔨 Building $(SERVICE)..."
+	@docker compose build $(SERVICE)
+	@echo "✅ $(SERVICE) built successfully"
+
+# Rebuild a service (with dependencies)
+rebuild-service:
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "❌ SERVICE parameter required. Usage: make rebuild-service SERVICE=frontend"; \
+		exit 1; \
+	fi
+	@echo "🔄 Rebuilding $(SERVICE)..."
+	@$(MAKE) stop-service SERVICE=$(SERVICE)
+	@$(MAKE) install-deps SERVICE=$(SERVICE)
+	@$(MAKE) build-service SERVICE=$(SERVICE)
+	@docker compose up -d $(SERVICE)
+	@$(MAKE) wait-for-service SERVICE=$(SERVICE)
+	@echo "✅ $(SERVICE) rebuilt and started"
+
+# Pause all services
+pause:
+	@echo "⏸️  Pausing services..."
+	@echo "📋 Pausing in reverse dependency order..."
+	
+	@echo "Phase 1: Pausing application services..."
+	@docker compose --profile full-stack pause erp-frontend api-gateway auth-service log-service
+	
+	@echo "Phase 2: Pausing development tools..."
+	@docker compose --profile dev-tools pause
+	
+	@echo "Phase 3: Pausing API layer..."
+	@docker compose pause websocket-server graphql-gateway grpc-registry
+	
+	@echo "Phase 4: Pausing core services..."
+	@docker compose pause elasticsearch kibana kafka mongodb qdrant postgres redis
+	
+	@echo "✅ All services paused. Use 'make resume' to resume"
+
+# Resume all services
+resume:
+	@echo "▶️  Resuming services..."
+	@echo "📋 Resuming in dependency order..."
+	
+	@echo "Phase 1: Resuming core services..."
+	@docker compose unpause postgres redis
+	@$(MAKE) wait-for-service SERVICE=postgres
+	@$(MAKE) wait-for-service SERVICE=redis
+	
+	@echo "Phase 2: Resuming databases..."
+	@docker compose unpause mongodb qdrant
+	@$(MAKE) wait-for-service SERVICE=mongodb
+	
+	@echo "Phase 3: Resuming messaging and search..."
+	@docker compose unpause kafka elasticsearch
+	@$(MAKE) wait-for-service SERVICE=kafka
+	@$(MAKE) wait-for-service SERVICE=elasticsearch
+	
+	@echo "Phase 4: Resuming API layer..."
+	@docker compose unpause grpc-registry graphql-gateway websocket-server
+	
+	@echo "Phase 5: Resuming monitoring..."
+	@docker compose unpause kibana
+	
+	@echo "Phase 6: Resuming development tools..."
+	@docker compose --profile dev-tools unpause
+	
+	@echo "Phase 7: Resuming application services..."
+	@docker compose --profile full-stack unpause auth-service api-gateway log-service erp-frontend
+	
+	@echo "✅ All services resumed"
+	@$(MAKE) print-info
+
+# Restart all services
+restart:
+	@echo "🔄 Restarting all services..."
+	@echo "⏸️  Step 1: Stopping services..."
+	@$(MAKE) stop
+	
+	@echo "⌛ Waiting for cleanup..."
+	@sleep 5
+	
+	@echo "🚀 Step 2: Starting services..."
+	@$(MAKE) start-dev
+	
+	@echo "✅ Restart complete"
+	@$(MAKE) print-info
+
+# Complete stop with cleanup
+full-stop:
+	@echo "🛑 Performing complete shutdown..."
+	@echo "⚠️  This will stop all services and clean up resources"
+	@read -p "Are you sure? (y/N): " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "📋 Step 1: Stopping services..."; \
+		$(MAKE) stop; \
+		echo "🧹 Step 2: Cleaning Docker resources..."; \
+		docker system prune -f --volumes; \
+		echo "🗑️  Step 3: Removing unused images..."; \
+		docker image prune -f; \
+		echo "💾 Step 4: Cleaning volumes..."; \
+		docker volume prune -f; \
+		echo "✅ Complete shutdown finished"; \
+		echo "💡 To restart, use 'make start-dev'"; \
+	else \
+		echo "❌ Operation cancelled"; \
+	fi
+
 # Show logs from all services or specific app
 logs:
 	@if [ -n "$(APP)" ]; then \
 		echo "📋 Showing logs for $(APP)..."; \
 		docker compose logs -f $(APP); \
 	else \
-		echo "📋 Showing logs for all services..."; \
+		echo "📋 Showing logs from all services..."; \
 		docker compose logs -f; \
 	fi
 
