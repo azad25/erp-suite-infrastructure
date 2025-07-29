@@ -1,6 +1,6 @@
 # ERP Suite Infrastructure Makefile
 
-.PHONY: help start stop restart reload pause resume build-service rebuild-service setup-proxy start-with-proxy start-dev check-ports prepare-environment configure-network detect-network-ip update-proxy-config create-nginx-config get-network-ip run start-services start-proxy-services init-dbs wait-for-service detect-os install-deps logs services status print-service-info expose-dev print-network-info print-info generate-ssl enable-https print-proxy-info macos-config macos-performance macos-clean build-all restart-proxy
+.PHONY: help start stop restart reload pause resume build-service rebuild-service setup-proxy start-with-proxy start-dev check-ports prepare-environment configure-network detect-network-ip update-proxy-config create-nginx-config get-network-ip run start-services start-proxy-services init-dbs wait-for-service detect-os install-deps logs services status print-service-info expose-dev print-network-info print-info print-dev generate-ssl enable-https print-proxy-info macos-config macos-performance macos-clean build-all restart-proxy
 
 # Variables
 SERVICE ?=
