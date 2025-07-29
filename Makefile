@@ -418,6 +418,7 @@ run:
 	@docker compose up -d postgres redis
 	@$(MAKE) wait-for-service SERVICE=postgres
 	@$(MAKE) wait-for-service SERVICE=redis
+	@$(MAKE) init-dbs
 	@echo "✅ Phase 1 complete: Core databases ready"
 	@sleep 2
 	@echo "🔄 Phase 2: Starting document and vector stores..."
