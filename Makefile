@@ -395,7 +395,7 @@ start: prepare-environment check-ports configure-network setup-proxy start-servi
 	@echo "✅ ERP Suite infrastructure started successfully!"
 
 # Development startup (sequential)
-start-dev: prepare-environment check-ports run print-dev
+start-dev: prepare-environment run print-dev
 	@echo "✅ ERP Suite development infrastructure started!"
 
 # Sequential startup for development
@@ -456,8 +456,7 @@ run:
 	@docker compose --profile dev-tools up -d
 	@echo "✅ Phase 8 complete: Development tools ready"
 	@echo "🔄 Phase 9: Starting core application services..."
-	@echo "🔄 Configuring Database..."
-	@$(MAKE) init-dbs
+
 	@echo "🔄 Phase 9a: Starting Auth Service..."
 	@cd ../erp-auth-service && go mod tidy && go build && cd ..
 	@docker compose --profile full-stack up -d auth-service

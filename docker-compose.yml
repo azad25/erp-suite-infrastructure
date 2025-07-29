@@ -172,12 +172,14 @@ services:
 
   # Elasticsearch - Full-text search (optimized for macOS)
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}"
+      - xpack.monitoring.enabled=false
+      - xpack.ml.enabled=false
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
       - bootstrap.memory_lock=false
       - cluster.routing.allocation.disk.threshold_enabled=false
       - xpack.security.transport.ssl.enabled=false
@@ -190,7 +192,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 2g
           cpus: '1.0'
         reservations:
           memory: 512m
@@ -513,11 +515,11 @@ services:
       - ../erp-auth-service:/src
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       redis:
-        condition: service_healthy
+        condition: service_started
       kafka:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${AUTH_SERVICE_HTTP_PORT:-8080}/health"]
       interval: 30s
@@ -589,17 +591,17 @@ services:
       - ../erp-api-gateway:/src
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       redis:
-        condition: service_healthy
+        condition: service_started
       kafka:
-        condition: service_healthy
+        condition: service_started
       elasticsearch:
-        condition: service_healthy
+        condition: service_started
       mongodb:
-        condition: service_healthy
+        condition: service_started
       auth-service:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
       interval: 30s
@@ -658,7 +660,7 @@ services:
 
   log-service:
     build:
-      context: ../erp-log-viewer-service
+      context: ../erp-log-service
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
     ports:
@@ -686,11 +688,11 @@ services:
       - ../erp-log-viewer-service:/app
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       kafka:
-        condition: service_healthy
+        condition: service_started
       api-gateway:
-        condition: service_healthy
+        condition: service_started
     networks:
       - erp-network
     profiles:
