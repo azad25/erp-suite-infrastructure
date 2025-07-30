@@ -475,7 +475,7 @@ run:
 	@echo ""
 	@echo "🔄 Phase 11: Starting Reverse Proxy..."
 	@echo "🌐 Configuring nginx proxy server"
-	docker-compose up -d nginx-proxy
+	@docker compose up -d nginx-proxy
 	@docker compose --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
 	@$(MAKE) wait-for-service SERVICE=nginx-proxy
 	@echo "✅ Phase 11 complete: proxy server is ready."
