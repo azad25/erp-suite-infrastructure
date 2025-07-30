@@ -676,36 +676,38 @@ services:
       - erp-network
     profiles:
       - full-stack
-    # code for linux config
-    # erp-frontend:
-    # build:
-    #   context: ../erp-frontend
-    #   dockerfile: Dockerfile.dev
-    # container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
-    # env_file:
-    #   - .env.frontend
-    # ports:
-    #   - "${FRONTEND_PORT:-3000}:3000"
-    # volumes:
-    #   - ../erp-frontend:/app
-    #   - frontend_node_modules:/app/node_modules
-    # tmpfs:
-    #   - /app/.next:exec,size=500m
-    # depends_on:
-    #   api-gateway:
-    #     condition: service_healthy
-    #   graphql-gateway:
-    #     condition: service_healthy
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 60s
-    # networks:
-    #   - erp-network
-    # profiles:
-    #   - full-stack
+  # Linux optimized configuration - run as root to avoid permission issues
+  # erp-frontend:
+  #   build:
+  #     context: ../erp-frontend
+  #     dockerfile: Dockerfile.dev
+  #   container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
+  #   user: "root"
+  #   env_file:
+  #     - .env.frontend
+  #   environment:
+  #     - NEXT_TELEMETRY_DISABLED=1
+  #   ports:
+  #     - "${FRONTEND_PORT:-3000}:3000"
+  #   volumes:
+  #     - ../erp-frontend:/app
+  #     - frontend_node_modules:/app/node_modules
+  #     - /tmp/frontend-next:/app/.next
+  #   depends_on:
+  #     api-gateway:
+  #       condition: service_healthy
+  #     graphql-gateway:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 60s
+  #   networks:
+  #     - erp-network
+  #   profiles:
+  #     - full-stack
 
   log-service:
     build:
