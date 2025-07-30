@@ -113,6 +113,7 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kafka
+    user: "1000:1000"
     environment:
       # KRaft Configuration
       KAFKA_NODE_ID: 1
@@ -121,7 +122,7 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://0.0.0.0:${KAFKA_PORT:-9092},CONTROLLER://0.0.0.0:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9092}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://kafka:${KAFKA_PORT:-9092}
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       
       # Topic Configuration (optimized for development)
@@ -172,23 +173,36 @@ services:
 
   # Elasticsearch - Full-text search (optimized for macOS)
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
+    build:
+      context: ./elasticsearch
+      dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - xpack.monitoring.enabled=false
       - xpack.ml.enabled=false
-      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
       - bootstrap.memory_lock=false
       - cluster.routing.allocation.disk.threshold_enabled=false
       - xpack.security.transport.ssl.enabled=false
       - xpack.security.http.ssl.enabled=false
+      - path.repo=/usr/share/elasticsearch/backup
+      - ES_TMPDIR=/tmp
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g -Djava.io.tmpdir=/tmp -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:ErrorFile=/tmp/hs_err_pid%p.log
+    init: true
     ports:
       - "${ELASTICSEARCH_PORT:-9200}:9200"
       - "9300:9300"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
+      - /tmp:/tmp
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
     deploy:
       resources:
         limits:
@@ -243,6 +257,7 @@ services:
   graphql-gateway:
     image: node:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-graphql-gateway
+    user: "1000:1000"
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     environment:
@@ -261,6 +276,8 @@ services:
       QUERY_CACHE_TTL: ${GRAPHQL_QUERY_CACHE_TTL:-300}
       DATALOADER_CACHE_TTL: ${GRAPHQL_DATALOADER_CACHE_TTL:-60}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      NPM_CONFIG_CACHE: /app/.npm
+      NPM_CONFIG_PREFIX: /app/.npm-global
     ports:
       - "${GRAPHQL_GATEWAY_PORT:-4000}:${GRAPHQL_GATEWAY_PORT:-4000}"
     volumes:
@@ -307,6 +324,7 @@ services:
   websocket-server:
     image: node:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-websocket
+    user: "1000:1000"
     working_dir: /app
     command: sh -c "npm install && npm start"
     environment:
@@ -341,11 +359,14 @@ services:
   nginx-proxy:
     image: nginx:alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-nginx-proxy
-    network_mode: "host"
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - graphql-gateway
       - api-gateway
@@ -357,6 +378,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    networks:
+      - erp-network
     profiles:
       - full-stack
       - proxy
@@ -472,6 +495,7 @@ services:
       context: ../erp-auth-service
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-auth-service
+    user: "1000:1000"
     environment:
       # Database Configuration
       DB_HOST: postgres
@@ -503,7 +527,7 @@ services:
       
       # Server Configuration
       GIN_MODE: debug
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:4000
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:4000,http://erp-frontend:3000,http://graphql-gateway:4000
       
       # Environment
       ENV: ${NODE_ENV:-development}
@@ -536,8 +560,9 @@ services:
       context: ../erp-api-gateway
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
+    user: "1000:1000"
     command: >
-      sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+      sh -c "mkdir -p /app/logs && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     # command: >
     #   sh -c "python manage.py migrate && gunicorn erp_core.wsgi:application --bind 0.0.0.0:8000"
     environment:
@@ -582,8 +607,8 @@ services:
       # Django Configuration
       DEBUG: ${DJANGO_DEBUG:-true}
       SECRET_KEY: ${DJANGO_SECRET_KEY:-your-super-secret-django-key-change-in-production}
-      ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api-gateway}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://erp-frontend:3000}
+      ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api-gateway,nginx-proxy}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://erp-frontend:3000,http://graphql-gateway:4000,http://websocket-server:3001}
       
       # Environment
       ENV: ${NODE_ENV:-development}
@@ -620,6 +645,7 @@ services:
       context: ../erp-frontend
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
+    user: "1000:1000"
     env_file:
       - .env.frontend
     ports:
@@ -649,6 +675,7 @@ services:
       context: ../erp-log-service
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
+    user: "1000:1000"
     ports:
       - "${LOG_SERVICE_HTTP_PORT:-8001}:8001"
       - "${LOG_SERVICE_GRPC_PORT:-50052}:50052"
@@ -694,6 +721,7 @@ volumes:
   qdrant_data:
   kafka_data:
   elasticsearch_data:
+  elasticsearch_config:
   pgadmin_data:
   consul_data:
   frontend_node_modules:

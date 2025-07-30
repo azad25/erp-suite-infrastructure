@@ -1,0 +1,58 @@
+## JVM configuration for Elasticsearch
+
+################################################################
+## IMPORTANT: JVM heap size
+################################################################
+-Xms1g
+-Xmx1g
+
+################################################################
+## Expert settings
+################################################################
+## G1GC Configuration (Default for modern Java versions)
+-XX:+UseG1GC
+-XX:G1HeapRegionSize=4m
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=50
+
+## Alternative: Use default GC (comment G1GC lines above if issues)
+# Let JVM choose the best GC for the platform
+
+## JVM temporary directory
+-Djava.io.tmpdir=${ES_TMPDIR}
+
+## heap dumps
+
+# generate a heap dump when an allocation from the Java heap fails
+# heap dumps are created in the working directory of the JVM
+-XX:+HeapDumpOnOutOfMemoryError
+
+# specify an alternative path for heap dumps; ensure the directory exists and
+# has sufficient space
+-XX:HeapDumpPath=/tmp
+
+# specify an alternative path for JVM fatal error logs
+-XX:ErrorFile=/tmp/hs_err_pid%p.log
+
+## JDK 8 GC logging - DISABLED
+# No GC logging to avoid permission issues
+
+## JDK 9+ GC logging - DISABLED
+# No GC logging to avoid permission issues
+
+## Disable all GC logging to avoid permission issues
+# Removed incompatible JVM options
+
+# JVM bug workaround
+-Djdk.io.permissionsUseCanonicalPath=false
+
+# Netty 4.1.43 requires setting this system property before netty4 classes are loaded.
+-Dio.netty.allocator.type=unpooled
+
+# Disable Netty recycler
+-Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+-Dio.netty.recycler.maxCapacityPerThread=0
+
+# Disable Lucene simd optimizations
+-Dorg.apache.lucene.store.MMapDirectory.enableMemorySegments=false
