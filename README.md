@@ -479,6 +479,29 @@ make start
 - Localhost: http://localhost/api/v1/
 - Network: http://YOUR_NETWORK_IP/api/v1/
 
+### Credentials:
+
+- Username: admin
+- Password: admin123
+
+### URLs:
+
+- Frontend(next.js): http://localhost
+- pgAdmin (PostgreSQL): http://localhost/admin/pgadmin/
+- Mongo Express (MongoDB): http://localhost/admin/mongo/
+- Redis Commander (Redis): http://localhost/admin/redis/
+- Kafka UI (Kafka): http://localhost/admin/kafka/
+- Kibana (Elasticsearch): http://localhost/admin/kibana/
+- Consul (Service Registry): http://localhost/admin/consul/
+
+### ✅ Direct Access (no authentication):
+- pgAdmin: http://localhost:8081
+- Mongo Express: http://localhost:8082
+- Redis Commander: http://localhost:8083
+- Kafka UI: http://localhost:8084
+- Kibana: http://localhost:5601
+- Consul: http://localhost:8500
+
 ## 🔧 Alternative Setup Methods
 
 ### Method 1: Infrastructure Only

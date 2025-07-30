@@ -473,6 +473,14 @@ run:
 	@$(MAKE) wait-for-service SERVICE=erp-frontend
 	@echo "✅ Phase 9-10 complete: All core application services up and running..."
 	@echo ""
+	@echo "🔄 Phase 11: Starting Reverse Proxy..."
+	@echo "🌐 Configuring nginx proxy server"
+	docker-compose up -d nginx-proxy
+	@docker compose --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
+	@$(MAKE) wait-for-service SERVICE=nginx-proxy
+	@echo "✅ Phase 11 complete: proxy server is ready."
+	@echo "✅ All services with proxy started!"
+
 	@echo "✅ ERP Infrastructure online"
 
 # Start with reverse proxy
