@@ -543,6 +543,7 @@ start-proxy-services:
 	@sleep 2
 	@echo "🔄 Phase 8: Starting development tools..."
 	@docker compose --profile dev-tools up -d
+
 	@echo "✅ Phase 8 complete: Development tools ready"
 	@echo "🔄 Phase 9: Starting core application services..."
 	@echo "🔄 Configuring Database..."
@@ -563,6 +564,8 @@ start-proxy-services:
 	@echo "✅ Phase 9-10 complete: All core application services up and running..."
 	@echo ""
 	@echo "🔄 Phase 11: Starting Reverse Proxy..."
+	@echo "🌐 Configuring nginx proxy server"
+	docker-compose --profile proxy up -d nginx-proxy
 	@docker compose --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
 	@$(MAKE) wait-for-service SERVICE=nginx-proxy
 	@echo "✅ Phase 11 complete: Reverse proxy is ready."

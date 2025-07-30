@@ -652,7 +652,7 @@ services:
       context: ../erp-frontend
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
-    user: "1000:1000"
+    user: "1001:1001"
     env_file:
       - .env.frontend
     ports:
@@ -682,7 +682,7 @@ services:
       context: ../erp-log-service
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
-    user: "1000:1000"
+    user: "1001:1001"
     ports:
       - "${LOG_SERVICE_HTTP_PORT:-8001}:8001"
       - "${LOG_SERVICE_GRPC_PORT:-50052}:50052"
@@ -705,7 +705,7 @@ services:
       retries: 3
       start_period: 60s
     volumes:
-      - ../erp-log-viewer-service:/app
+      - ../erp-log-service:/src
     depends_on:
       postgres:
         condition: service_started
