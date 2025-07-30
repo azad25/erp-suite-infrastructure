@@ -37,12 +37,19 @@ services:
 
   # MongoDB - Analytics, logs, AI conversations (Phase 2: Document Store)
   mongodb:
-    image: mongo:6-jammy
+    # image: mongo:6-jammy //fallback if mongodb issue
+    image: mongo:7-jammy
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb
+    restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
       MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
+    command: >
+      bash -c "
+        chmod 777 /tmp &&
+        exec docker-entrypoint.sh mongod --bind_ip_all --auth
+      "
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     volumes:
