@@ -120,7 +120,6 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kafka
-    user: "1000:1000"
     environment:
       # KRaft Configuration
       KAFKA_NODE_ID: 1
@@ -264,7 +263,6 @@ services:
   graphql-gateway:
     image: node:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-graphql-gateway
-    user: "1000:1000"
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     environment:
@@ -331,7 +329,6 @@ services:
   websocket-server:
     image: node:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-websocket
-    user: "1000:1000"
     working_dir: /app
     command: sh -c "npm install && npm start"
     environment:
@@ -405,7 +402,6 @@ services:
   pgadmin:
     image: dpage/pgadmin4:8.0
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-pgadmin
-    user: "root"
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@erp.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
@@ -516,7 +512,6 @@ services:
       context: ../erp-auth-service
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-auth-service
-    user: "1000:1000"
     command: /go/bin/air -c .air.toml
     environment:
       # Database Configuration
@@ -582,9 +577,8 @@ services:
       context: ../erp-api-gateway
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
-    user: "1000:1000"
     command: >
-      sh -c "mkdir -p /app/logs && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+      sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     # command: >
     #   sh -c "python manage.py migrate && gunicorn erp_core.wsgi:application --bind 0.0.0.0:8000"
     environment:
@@ -667,9 +661,10 @@ services:
       context: ../erp-frontend
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
-    user: "1001:1001"
     env_file:
       - .env.frontend
+    environment:
+      - NEXT_TELEMETRY_DISABLED=1
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:
@@ -691,45 +686,12 @@ services:
       - erp-network
     profiles:
       - full-stack
-  # Linux optimized configuration - run as root to avoid permission issues
-  # erp-frontend:
-  #   build:
-  #     context: ../erp-frontend
-  #     dockerfile: Dockerfile.dev
-  #   container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
-  #   user: "root"
-  #   env_file:
-  #     - .env.frontend
-  #   environment:
-  #     - NEXT_TELEMETRY_DISABLED=1
-  #   ports:
-  #     - "${FRONTEND_PORT:-3000}:3000"
-  #   volumes:
-  #     - ../erp-frontend:/app
-  #     - frontend_node_modules:/app/node_modules
-  #     - /tmp/frontend-next:/app/.next
-  #   depends_on:
-  #     api-gateway:
-  #       condition: service_healthy
-  #     graphql-gateway:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 60s
-  #   networks:
-  #     - erp-network
-  #   profiles:
-  #     - full-stack
 
   log-service:
     build:
       context: ../erp-log-service
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
-    user: "1001:1001"
     command: /go/bin/air -c .air.toml
     ports:
       - "${LOG_SERVICE_HTTP_PORT:-8001}:8001"
