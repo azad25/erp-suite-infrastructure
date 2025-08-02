@@ -549,7 +549,7 @@ services:
       
       # Server Configuration
       GIN_MODE: debug
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:4000,http://erp-frontend:3000,http://graphql-gateway:4000
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:4000,http://erp-frontend:3000,http://graphql-gateway:4000
       
       # Environment
       ENV: ${NODE_ENV:-development}
@@ -630,7 +630,7 @@ services:
       DEBUG: ${DJANGO_DEBUG:-true}
       SECRET_KEY: ${DJANGO_SECRET_KEY:-your-super-secret-django-key-change-in-production}
       ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api-gateway,nginx-proxy}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://erp-frontend:3000,http://graphql-gateway:4000,http://websocket-server:3001}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000,http://graphql-gateway:4000,http://websocket-server:3001}
       
       # Environment
       ENV: ${NODE_ENV:-development}

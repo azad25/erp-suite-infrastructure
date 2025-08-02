@@ -74,8 +74,8 @@ The ERP Suite is composed of multiple microservices, each in its own repository.
 | **Auth Service** | [erp-auth-service](https://github.com/azad25/erp-auth-service) | Authentication & authorization service | Go, gRPC |
 | **Frontend** | [erp-frontend](https://github.com/azad25/erp-frontend) | Next.js web application | TypeScript, Next.js |
 | **Log Service** | [erp-log-service](https://github.com/azad25/erp-log-service) | Centralized logging service | Go, gRPC |
-| **GraphQL Gateway** | [erp-graphql-gateway](https://github.com/your-org/erp-graphql-gateway) | GraphQL API gateway | Node.js, Apollo |
-| **WebSocket Server** | [erp-websocket-server](https://github.com/your-org/erp-websocket-server) | Real-time communication | Node.js, Socket.IO |
+| **GraphQL Gateway** | [erp-graphql-gateway](https://github.com/azad25/erp-graphql-gateway) | GraphQL API gateway | Node.js, Apollo |
+| **WebSocket Server** | [erp-websocket-server](https://github.com/azad25/erp-websocket-server) | Real-time communication | Node.js, Socket.IO |
 
 ## 🏗️ ERP System Infrastructure Integration Hierarchy
 
@@ -299,15 +299,15 @@ Create a workspace directory and clone all repositories:
 mkdir erp-suite && cd erp-suite
 
 # Clone infrastructure repository (this one)
-git clone https://github.com/your-org/erp-suite-infrastructure.git
+git clone https://github.com/azad25/erp-suite-infrastructure.git
 
 # Clone all service repositories
-git clone https://github.com/your-org/erp-api-gateway.git
-git clone https://github.com/your-org/erp-auth-service.git
-git clone https://github.com/your-org/erp-frontend.git
-git clone https://github.com/your-org/erp-log-viewer-service.git
-git clone https://github.com/your-org/erp-graphql-gateway.git
-git clone https://github.com/your-org/erp-websocket-server.git
+git clone https://github.com/azad25/erp-api-gateway.git
+git clone https://github.com/azad25/erp-auth-service.git
+git clone https://github.com/azad25/erp-frontend.git
+git clone https://github.com/azad25/erp-log-viewer-service.git
+git clone https://github.com/azad25/erp-graphql-gateway.git
+git clone https://github.com/azad25/erp-websocket-server.git
 ```
 
 ### Step 2: Directory Structure
