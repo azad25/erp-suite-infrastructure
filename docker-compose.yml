@@ -650,7 +650,7 @@ services:
       
       # gRPC Services Configuration (only auth-service is available)
       HOST: auth-service
-      PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
       ERP_GRPC_AUTH_SERVICE_HOST: auth-service
       ERP_GRPC_AUTH_SERVICE_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
       ERP_GRPC_AUTH_SERVICE_TIMEOUT: 10s
