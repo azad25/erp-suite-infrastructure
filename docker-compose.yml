@@ -37,25 +37,20 @@ services:
 
   # MongoDB - Analytics, logs, AI conversations (Phase 2: Document Store)
   mongodb:
-    # image: mongo:6-jammy //fallback if mongodb issue
-    image: mongo:7-jammy
+    image: mongo:5.0-focal
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
       MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
-    command: >
-      bash -c "
-        chmod 777 /tmp &&
-        exec docker-entrypoint.sh mongod --bind_ip_all --auth
-      "
+    command: mongod --auth --bind_ip_all --wiredTigerCacheSizeGB 0.25
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--username", "${MONGODB_ROOT_USERNAME:-root}", "--password", "${MONGODB_ROOT_PASSWORD:-password}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongo", "--quiet", "--username", "${MONGODB_ROOT_USERNAME:-root}", "--password", "${MONGODB_ROOT_PASSWORD:-password}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -375,10 +370,10 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
-      - graphql-gateway
-      - api-gateway
-      - websocket-server
-      - erp-frontend
+      graphql-gateway:
+        condition: service_healthy
+      websocket-server:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
@@ -517,6 +512,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-auth-service
     user: "1000:1000"
+    working_dir: /app
     command: /go/bin/air -c .air.toml
     environment:
       # Database Configuration
@@ -535,21 +531,43 @@ services:
       
       # Kafka Configuration
       KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-      KAFKA_GROUP_ID: auth-service-group
+      KAFKA_TOPIC: auth-events
+      KAFKA_RETRY_ATTEMPTS: 3
+      KAFKA_RETRY_BACKOFF_MS: 1000
+      KAFKA_BATCH_SIZE: 100
+      KAFKA_BATCH_TIMEOUT_MS: 10
+      KAFKA_CONNECTION_POOL_SIZE: 10
+      KAFKA_LOCAL_QUEUE_SIZE: 10000
+      KAFKA_DEAD_LETTER_TOPIC: auth-events-dlq
+      KAFKA_ENABLE_LOCAL_PERSISTENCE: true
+      KAFKA_LOCAL_STORAGE_PATH: /tmp/kafka-events
       
-      # Service Configuration
-      PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
-      GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      # JWT Configuration
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_ACCESS_EXPIRY: 3600
       JWT_REFRESH_EXPIRY: 604800
-      
-      # Kafka Topic Configuration
-      KAFKA_TOPIC: auth-events
+      JWT_KEY_ROTATION_ENABLED: false
+      JWT_KEY_ROTATION_INTERVAL: 24
+      JWT_REVOKE_REFRESH_ON_USE: false
       
       # Server Configuration
+      PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
       GIN_MODE: debug
-      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:4000,http://erp-frontend:3000,http://graphql-gateway:4000
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:4000,http://erp-frontend:3000,http://graphql-gateway:4000,http://api-gateway:8000
+      
+      # gRPC Configuration
+      GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      GRPC_MAX_CONNECTION_IDLE: 300
+      GRPC_MAX_CONNECTION_AGE: 300
+      GRPC_MAX_CONNECTION_AGE_GRACE: 5
+      GRPC_KEEPALIVE_TIME: 30
+      GRPC_KEEPALIVE_TIMEOUT: 5
+      GRPC_MAX_RECV_MSG_SIZE: 4194304
+      GRPC_MAX_SEND_MSG_SIZE: 4194304
+      GRPC_MAX_CONCURRENT_STREAMS: 1000
+      GRPC_CONNECTION_TIMEOUT: 5
+      GRPC_KEEPALIVE_ENFORCEMENT_MIN_TIME: 5
+      GRPC_KEEPALIVE_ENFORCEMENT_PERMIT_WITHOUT_STREAM: false
       
       # Environment
       ENV: ${NODE_ENV:-development}
@@ -571,91 +589,117 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 45s
     networks:
       - erp-network
     profiles:
       - full-stack
 
-  # Django API Gateway - Main API Gateway
+  # Go API Gateway - Main API Gateway
   api-gateway:
     build:
       context: ../erp-api-gateway
       dockerfile: Dockerfile.dev
+      target: development
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
-    user: "1000:1000"
-    command: >
-      sh -c "mkdir -p /app/logs && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    # command: >
-    #   sh -c "python manage.py migrate && gunicorn erp_core.wsgi:application --bind 0.0.0.0:8000"
+    working_dir: /app
+    command: sh -c "go build -o /tmp/gateway cmd/server/main.go && /tmp/gateway"
     environment:
+      # Server Configuration
+      ERP_SERVER_HOST: 0.0.0.0
+      ERP_SERVER_PORT: ${API_GATEWAY_PORT:-8000}
+      PORT: ${API_GATEWAY_PORT:-8000}
+      SERVER_PORT: ${API_GATEWAY_PORT:-8000}
+      ERP_SERVER_READ_TIMEOUT: 30s
+      ERP_SERVER_WRITE_TIMEOUT: 30s
+      ERP_SERVER_SHUTDOWN_TIMEOUT: 10s
+      
       # Database Configuration
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: erp_system
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      ERP_DATABASE_HOST: postgres
+      ERP_DATABASE_PORT: 5432
+      ERP_DATABASE_NAME: erp_gateway
+      ERP_DATABASE_USER: ${POSTGRES_USER:-postgres}
+      ERP_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      ERP_DATABASE_SSL_MODE: disable
       
       # Redis Configuration
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
       REDIS_DB: 1
+      ERP_REDIS_HOST: redis
+      ERP_REDIS_PORT: 6379
+      ERP_REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
+      ERP_REDIS_DB: 1
+      ERP_REDIS_POOL_SIZE: 10
+      ERP_REDIS_MIN_IDLE_CONNS: 5
+      ERP_REDIS_DIAL_TIMEOUT: 5s
+      ERP_REDIS_READ_TIMEOUT: 3s
+      ERP_REDIS_WRITE_TIMEOUT: 3s
       
-      # Kafka Configuration
+      # Kafka Configuration (optional)
       KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-      KAFKA_GROUP_ID: django-api-gateway-group
+      KAFKA_CLIENT_ID: go-api-gateway
+      ERP_KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
+      ERP_KAFKA_CLIENT_ID: go-api-gateway
+      ERP_KAFKA_RETRY_MAX: 3
+      ERP_KAFKA_RETRY_BACKOFF: 100ms
+      ERP_KAFKA_FLUSH_MESSAGES: 100
+      ERP_KAFKA_FLUSH_BYTES: 1048576
+      ERP_KAFKA_FLUSH_TIMEOUT: 1s
       
-      # Elasticsearch Configuration
-      ELASTICSEARCH_HOST: elasticsearch
-      ELASTICSEARCH_PORT: 9200
-      ELASTICSEARCH_USERNAME: elastic
-      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-password}
+      # gRPC Services Configuration (only auth-service is available)
+      HOST: auth-service
+      PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      ERP_GRPC_AUTH_SERVICE_HOST: auth-service
+      ERP_GRPC_AUTH_SERVICE_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      ERP_GRPC_AUTH_SERVICE_TIMEOUT: 10s
+      ERP_GRPC_AUTH_SERVICE_MAX_RETRIES: 3
+      ERP_GRPC_AUTH_SERVICE_RETRY_BACKOFF: 100ms
       
-      # MongoDB Configuration
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
-      MONGODB_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
-      MONGODB_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
-      MONGODB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
+      # JWT Configuration
+      ERP_JWT_JWKS_URL: http://auth-service:${AUTH_SERVICE_HTTP_PORT:-8080}/api/v1/.well-known/jwks.json
+      ERP_JWT_CACHE_TTL: 1h
+      ERP_JWT_ALGORITHM: RS256
+      ERP_JWT_ISSUER: erp-auth-service
       
-      # Auth Service Configuration
-      AUTH_SERVICE_HTTP_URL: http://auth-service:${AUTH_SERVICE_HTTP_PORT:-8080}
-      AUTH_SERVICE_GRPC_HOST: auth-service
-      AUTH_SERVICE_GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
+      # CORS Configuration
+      ERP_SERVER_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000,http://graphql-gateway:4000,http://websocket-server:3001
+      ERP_SERVER_CORS_ALLOWED_METHODS: GET,POST,PUT,DELETE,OPTIONS,PATCH
+      ERP_SERVER_CORS_ALLOWED_HEADERS: Authorization,Content-Type,X-Requested-With,Accept,Origin
+      ERP_SERVER_CORS_ALLOW_CREDENTIALS: true
+      ERP_SERVER_CORS_MAX_AGE: 86400
       
-      # WebSocket Configuration
-      WEBSOCKET_URL: http://websocket-server:${WEBSOCKET_PORT:-3001}
-      
-      # Django Configuration
-      DEBUG: ${DJANGO_DEBUG:-true}
-      SECRET_KEY: ${DJANGO_SECRET_KEY:-your-super-secret-django-key-change-in-production}
-      ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api-gateway,nginx-proxy}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000,http://graphql-gateway:4000,http://websocket-server:3001}
+      # Logging Configuration
+      ERP_LOGGING_LEVEL: ${LOG_LEVEL:-info}
+      ERP_LOGGING_FORMAT: json
+      ERP_LOGGING_OUTPUT: stdout
+      ERP_LOGGING_BUFFER_SIZE: 1000
+      ERP_LOGGING_FLUSH_INTERVAL: 5s
+      ERP_LOGGING_ELASTICSEARCH_URLS: http://elasticsearch:9200
+      ERP_LOGGING_ELASTICSEARCH_INDEX_NAME: go-api-gateway-logs
       
       # Environment
       ENV: ${NODE_ENV:-development}
+      GO_ENV: ${NODE_ENV:-development}
+      CONFIG_FILE: /app/config.yaml
     ports:
-      - "${DJANGO_PORT:-8000}:8000"
+      - "${API_GATEWAY_PORT:-8000}:${API_GATEWAY_PORT:-8000}"
     volumes:
       - ../erp-api-gateway:/app
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
-      kafka:
-        condition: service_started
-      elasticsearch:
-        condition: service_started
-      mongodb:
-        condition: service_started
+        condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${API_GATEWAY_PORT:-8000}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 45s
     networks:
       - erp-network
     profiles:

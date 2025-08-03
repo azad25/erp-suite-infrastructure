@@ -72,7 +72,7 @@ create_go_service() {
     cat > go.mod << EOF
 module erp-${SERVICE_NAME}-service
 
-go 1.21
+go 1.23
 
 require (
     github.com/gin-gonic/gin v1.9.1
