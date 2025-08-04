@@ -40,6 +40,7 @@ services:
     image: mongo:6.0-jammy
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb
     restart: unless-stopped
+    user: 1000:1000
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
@@ -330,6 +331,7 @@ services:
   nginx-proxy:
     image: nginx:alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-nginx-proxy
+    user: 1000:1000
     ports:
       - "80:80"
       - "443:443"
@@ -407,6 +409,7 @@ services:
   mongo-express:
     image: mongo-express:latest
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongo-express
+    user: 1000:1000
     environment:
       ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USERNAME:-root}
       ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
@@ -557,9 +560,10 @@ services:
   api-gateway:
     build:
       context: ../erp-api-gateway
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
       target: development
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
+    user: "root"
     working_dir: /app
     # Use the default CMD from Dockerfile (air for hot reload)
     # command: sh -c "go build -o /tmp/gateway cmd/server/main.go && /tmp/gateway"
