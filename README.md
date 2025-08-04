@@ -40,6 +40,8 @@
 
 > **A dev-first, subscription-based SaaS ERP platform with 14 independent microservices and embedded AI capabilities**
 
+![](./preview.png)
+
 Complete infrastructure setup for the ERP Suite development environment with sequential startup, dependency management, reverse proxy support, automatic network detection, and cross-platform compatibility.
 
 ## 📦 Repository Structure
