@@ -423,30 +423,23 @@ run:
 	@sleep 2
 	@echo "🔄 Phase 2: Starting document and vector stores..."
 	@docker compose up -d mongodb qdrant
-	@$(MAKE) wait-for-service SERVICE=mongodb
-	@$(MAKE) wait-for-service SERVICE=qdrant
 	@echo "✅ Phase 2 complete: Document and vector stores ready"
 	@sleep 2
 	@echo "🔄 Phase 3: Starting message broker..."
 	@docker compose up -d kafka
-	@$(MAKE) wait-for-service SERVICE=kafka
 	@echo "✅ Phase 3 complete: Message broker ready"
 	@sleep 2
 	@echo "🔄 Phase 4: Starting search engine..."
 	@docker compose up -d elasticsearch
-	@$(MAKE) wait-for-service SERVICE=elasticsearch
 	@echo "✅ Phase 4 complete: Search engine ready"
 	@sleep 2
 	@echo "🔄 Phase 5: Starting API layer..."
 	@docker compose up -d grpc-registry
-	@$(MAKE) wait-for-service SERVICE=grpc-registry
 	@docker compose up -d graphql-gateway
-	@$(MAKE) wait-for-service SERVICE=graphql-gateway
 	@echo "✅ Phase 5 complete: API layer ready"
 	@sleep 2
 	@echo "🔄 Phase 6: Starting WebSocket server..."
 	@docker compose up -d websocket-server
-	@$(MAKE) wait-for-service SERVICE=websocket-server
 	@echo "✅ Phase 6 complete: WebSocket server ready"
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
@@ -461,16 +454,13 @@ run:
 	@echo "🔄 Phase 9a: Starting Auth Service..."
 	@cd ../erp-auth-service && go mod tidy && go build && cd ..
 	@docker compose --profile full-stack up -d auth-service
-	@$(MAKE) wait-for-service SERVICE=auth-service
 	@echo "🔄 Phase 9b: Starting API Gateway..."
 	@docker compose --profile full-stack up -d api-gateway
 	@$(MAKE) wait-for-service SERVICE=api-gateway
 	@echo "🔄 Phase 9c: Starting Log Service..."
 	@docker compose --profile full-stack up -d log-service
-	@$(MAKE) wait-for-service SERVICE=log-service
 	@echo "🔄 Phase 10: Starting Frontend..."
 	@docker compose --profile full-stack up -d erp-frontend
-	@$(MAKE) wait-for-service SERVICE=erp-frontend
 	@echo "✅ Phase 9-10 complete: All core application services up and running..."
 	@echo ""
 	@echo "🔄 Phase 11: Starting Reverse Proxy..."

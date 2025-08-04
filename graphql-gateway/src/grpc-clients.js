@@ -251,14 +251,27 @@ class GrpcClientManager {
   }
 
   startHealthChecking() {
+    // Reduced frequency: Check every 2 minutes instead of 30 seconds
     setInterval(async () => {
+      // Only check if circuit breaker is not already open
       for (const [serviceName, client] of Object.entries(this.clients)) {
         try {
+          const circuitBreaker = this.circuitBreakers[serviceName];
+          
+          // Skip health check if circuit breaker is open and recently failed
+          if (circuitBreaker && circuitBreaker.state === 'OPEN') {
+            const timeSinceLastFailure = Date.now() - circuitBreaker.lastFailureTime;
+            if (timeSinceLastFailure < circuitBreaker.timeout) {
+              console.log(`⏭️ Skipping health check for ${serviceName} (circuit breaker open)`);
+              continue;
+            }
+          }
+          
           // Perform health check if the service supports it
           if (client.healthCheck) {
             client.healthCheck({}, (error, response) => {
               if (error) {
-                console.warn(`Health check failed for ${serviceName}:`, error.message);
+                console.warn(`❌ Health check failed for ${serviceName}:`, error.message);
               } else {
                 console.log(`✅ ${serviceName} service healthy`);
               }
@@ -268,7 +281,7 @@ class GrpcClientManager {
           console.error(`Health check error for ${serviceName}:`, error.message);
         }
       }
-    }, 30000); // Check every 30 seconds
+    }, 120000); // Check every 2 minutes (reduced from 30 seconds)
   }
 
   async shutdown() {
