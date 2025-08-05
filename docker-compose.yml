@@ -40,7 +40,7 @@ services:
     image: mongo:6.0-jammy
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb
     restart: unless-stopped
-    # user: 1000:1000
+    user: 1000:1000
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
@@ -176,7 +176,7 @@ services:
       - xpack.security.http.ssl.enabled=false
       - path.repo=/usr/share/elasticsearch/backup
       - ES_TMPDIR=/tmp
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g -Djava.io.tmpdir=/tmp -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:ErrorFile=/tmp/hs_err_pid%p.log
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g -Djava.io.tmpdir=/tmp -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:ErrorFile=/tmp/hs_err_pid%p.log
     init: true
     ports:
       - "${ELASTICSEARCH_PORT:-9200}:9200"
@@ -194,10 +194,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
-          cpus: '1.0'
+          memory: 4g
+          cpus: '2.0'
         reservations:
-          memory: 512m
+          memory: 1g
           cpus: '0.5'
     # Health check removed - Elasticsearch cluster health check is expensive and slow to start
     networks:
@@ -330,6 +330,7 @@ services:
   nginx-proxy:
     image: nginx:alpine
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-nginx-proxy
+    user: "root"
     ports:
       - "80:80"
     volumes:
@@ -379,28 +380,23 @@ services:
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: 'False'
       PGADMIN_CONFIG_WTF_CSRF_ENABLED: 'False'
-      TMPDIR: /tmp
-      TMP: /tmp
-      TEMP: /tmp
     command: >
       sh -c "
-        mkdir -p /tmp /var/tmp /usr/tmp /var/log/pgadmin /pgadmin4 &&
-        chmod 777 /tmp /var/tmp /usr/tmp /var/log/pgadmin /pgadmin4 &&
+        mkdir -p /var/log/pgadmin /var/tmp /usr/tmp &&
+        chmod 777 /var/log/pgadmin /var/tmp /usr/tmp &&
         /entrypoint.sh
       "
     ports:
-      - "${PGADMIN_PORT:-8081}:8008"
+      - "${PGADMIN_PORT:-8081}:80"
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
       - ./config/pgadmin/servers.json:/pgadmin4/servers.json:ro
-    # Health check removed - Development tool, not critical for functionality
+      - pgadmin_data:/var/lib/pgadmin
     networks:
       - erp-network
     profiles:
       - infrastructure
       - full-stack
       - dev-tools
-
 
   # Mongo Express - MongoDB management
   mongo-express:
@@ -676,7 +672,7 @@ services:
       - .env.frontend
     environment:
       - NEXT_TELEMETRY_DISABLED=1
-      - NODE_OPTIONS=--max-old-space-size=2048
+      - NODE_OPTIONS=--max-old-space-size=4096
       - WATCHPACK_POLLING=false
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
@@ -698,10 +694,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2g
-          cpus: '1.0'
+          memory: 6g
+          cpus: '2.0'
         reservations:
-          memory: 512m
+          memory: 1g
           cpus: '0.5'
     networks:
       - erp-network
