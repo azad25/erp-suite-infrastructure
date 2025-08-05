@@ -444,6 +444,7 @@ run:
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
 	@docker compose up -d kibana
+	@cd ./ && ./scripts/setup-logging.sh
 	@echo "✅ Phase 7 complete: Logging services ready"
 	@sleep 2
 	@echo "🔄 Phase 8: Starting development tools..."

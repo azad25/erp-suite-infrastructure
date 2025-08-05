@@ -1,0 +1,48 @@
+# JVM Options for Elasticsearch in ERP Suite
+
+# Heap size (adjust based on available memory)
+-Xms2g
+-Xmx2g
+
+# GC settings
+-XX:+UseG1GC
+-XX:G1HeapRegionSize=16m
+-XX:+UseG1GC
+-XX:+UnlockExperimentalVMOptions
+-XX:+UseG1GC
+-XX:G1NewSizePercent=30
+-XX:G1MaxNewSizePercent=40
+-XX:+UseLargePages
+-XX:+UnlockDiagnosticVMOptions
+-XX:+LogVMOutput
+
+# Heap dumps
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/tmp
+
+# Error file
+-XX:ErrorFile=/tmp/hs_err_pid%p.log
+
+# GC logging
+-Xlog:gc*,gc+age=trace,safepoint:gc.log:utctime,pid,tid,level,tags
+
+# Temporary directory
+-Djava.io.tmpdir=/tmp
+
+# Security manager
+-Djava.security.policy=file:///usr/share/elasticsearch/config/elasticsearch.policy
+
+# Networking
+-Djava.net.preferIPv4Stack=true
+
+# File encoding
+-Dfile.encoding=UTF-8
+
+# Disable assertions
+-da
+
+# Enable system call filter
+-Dlog4j2.disable.jmx=true
+
+# Prevent JVM from swapping
+-XX:+AlwaysPreTouch

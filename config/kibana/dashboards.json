@@ -1,0 +1,125 @@
+{
+  "version": "7.17.3",
+  "objects": [
+    {
+      "id": "erp-overview-dashboard",
+      "type": "dashboard",
+      "attributes": {
+        "title": "ERP Suite - System Overview",
+        "description": "High-level overview of ERP system health and performance",
+        "panelsJSON": "[{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{},\"panelRefName\":\"panel_1\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":24,\"y\":0,\"w\":24,\"h\":15,\"i\":\"2\"},\"panelIndex\":\"2\",\"embeddableConfig\":{},\"panelRefName\":\"panel_2\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":15,\"w\":48,\"h\":15,\"i\":\"3\"},\"panelIndex\":\"3\",\"embeddableConfig\":{},\"panelRefName\":\"panel_3\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":30,\"w\":24,\"h\":15,\"i\":\"4\"},\"panelIndex\":\"4\",\"embeddableConfig\":{},\"panelRefName\":\"panel_4\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":24,\"y\":30,\"w\":24,\"h\":15,\"i\":\"5\"},\"panelIndex\":\"5\",\"embeddableConfig\":{},\"panelRefName\":\"panel_5\"}]",
+        "timeRestore": false,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"query\":{\"query\":\"\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      },
+      "references": [
+        {
+          "name": "panel_1",
+          "type": "visualization",
+          "id": "erp-request-volume"
+        },
+        {
+          "name": "panel_2",
+          "type": "visualization",
+          "id": "erp-error-rate"
+        },
+        {
+          "name": "panel_3",
+          "type": "visualization",
+          "id": "erp-response-times"
+        },
+        {
+          "name": "panel_4",
+          "type": "visualization",
+          "id": "erp-service-health"
+        },
+        {
+          "name": "panel_5",
+          "type": "visualization",
+          "id": "erp-top-errors"
+        }
+      ]
+    },
+    {
+      "id": "erp-auth-service-dashboard",
+      "type": "dashboard",
+      "attributes": {
+        "title": "ERP Suite - Auth Service",
+        "description": "Authentication service monitoring and analytics",
+        "panelsJSON": "[{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{},\"panelRefName\":\"panel_1\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":24,\"y\":0,\"w\":24,\"h\":15,\"i\":\"2\"},\"panelIndex\":\"2\",\"embeddableConfig\":{},\"panelRefName\":\"panel_2\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":15,\"w\":48,\"h\":15,\"i\":\"3\"},\"panelIndex\":\"3\",\"embeddableConfig\":{},\"panelRefName\":\"panel_3\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":30,\"w\":24,\"h\":15,\"i\":\"4\"},\"panelIndex\":\"4\",\"embeddableConfig\":{},\"panelRefName\":\"panel_4\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":24,\"y\":30,\"w\":24,\"h\":15,\"i\":\"5\"},\"panelIndex\":\"5\",\"embeddableConfig\":{},\"panelRefName\":\"panel_5\"}]",
+        "timeRestore": false,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"query\":{\"query\":\"service:auth-service\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      },
+      "references": [
+        {
+          "name": "panel_1",
+          "type": "visualization",
+          "id": "auth-login-attempts"
+        },
+        {
+          "name": "panel_2",
+          "type": "visualization",
+          "id": "auth-success-rate"
+        },
+        {
+          "name": "panel_3",
+          "type": "visualization",
+          "id": "auth-user-activity"
+        },
+        {
+          "name": "panel_4",
+          "type": "visualization",
+          "id": "auth-token-operations"
+        },
+        {
+          "name": "panel_5",
+          "type": "visualization",
+          "id": "auth-security-events"
+        }
+      ]
+    },
+    {
+      "id": "erp-api-gateway-dashboard",
+      "type": "dashboard",
+      "attributes": {
+        "title": "ERP Suite - API Gateway",
+        "description": "API Gateway monitoring and performance metrics",
+        "panelsJSON": "[{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":0,\"w\":24,\"h\":15,\"i\":\"1\"},\"panelIndex\":\"1\",\"embeddableConfig\":{},\"panelRefName\":\"panel_1\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":24,\"y\":0,\"w\":24,\"h\":15,\"i\":\"2\"},\"panelIndex\":\"2\",\"embeddableConfig\":{},\"panelRefName\":\"panel_2\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":15,\"w\":48,\"h\":15,\"i\":\"3\"},\"panelIndex\":\"3\",\"embeddableConfig\":{},\"panelRefName\":\"panel_3\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":0,\"y\":30,\"w\":24,\"h\":15,\"i\":\"4\"},\"panelIndex\":\"4\",\"embeddableConfig\":{},\"panelRefName\":\"panel_4\"},{\"version\":\"7.17.3\",\"gridData\":{\"x\":24,\"y\":30,\"w\":24,\"h\":15,\"i\":\"5\"},\"panelIndex\":\"5\",\"embeddableConfig\":{},\"panelRefName\":\"panel_5\"}]",
+        "timeRestore": false,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"query\":{\"query\":\"service:erp-api-gateway\",\"language\":\"kuery\"},\"filter\":[]}"
+        }
+      },
+      "references": [
+        {
+          "name": "panel_1",
+          "type": "visualization",
+          "id": "gateway-throughput"
+        },
+        {
+          "name": "panel_2",
+          "type": "visualization",
+          "id": "gateway-latency"
+        },
+        {
+          "name": "panel_3",
+          "type": "visualization",
+          "id": "gateway-status-codes"
+        },
+        {
+          "name": "panel_4",
+          "type": "visualization",
+          "id": "gateway-endpoints"
+        },
+        {
+          "name": "panel_5",
+          "type": "visualization",
+          "id": "gateway-errors"
+        }
+      ]
+    }
+  ]
+}

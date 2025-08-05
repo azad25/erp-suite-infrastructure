@@ -1,0 +1,368 @@
+{
+  "index_templates": [
+    {
+      "name": "erp-logs-template",
+      "index_patterns": ["erp-*-logs-*"],
+      "priority": 100,
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "5s",
+          "index.codec": "best_compression",
+          "index.lifecycle.name": "erp-logs-policy",
+          "index.lifecycle.rollover_alias": "erp-logs"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": {
+              "type": "date",
+              "format": "strict_date_optional_time||epoch_millis"
+            },
+            "level": {
+              "type": "keyword"
+            },
+            "message": {
+              "type": "text",
+              "analyzer": "standard",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "service": {
+              "type": "keyword"
+            },
+            "component": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            },
+            "request_id": {
+              "type": "keyword"
+            },
+            "user_id": {
+              "type": "keyword"
+            },
+            "correlation_id": {
+              "type": "keyword"
+            },
+            "log_type": {
+              "type": "keyword"
+            },
+            "method": {
+              "type": "keyword"
+            },
+            "path": {
+              "type": "keyword"
+            },
+            "status_code": {
+              "type": "integer"
+            },
+            "duration_ms": {
+              "type": "long"
+            },
+            "remote_ip": {
+              "type": "ip"
+            },
+            "user_agent": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 512
+                }
+              }
+            },
+            "error": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "stack_trace": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "event_type": {
+              "type": "keyword"
+            },
+            "event_id": {
+              "type": "keyword"
+            },
+            "metric_name": {
+              "type": "keyword"
+            },
+            "metric_type": {
+              "type": "keyword"
+            },
+            "metric_value": {
+              "type": "double"
+            },
+            "fields": {
+              "type": "object",
+              "dynamic": true
+            },
+            "context": {
+              "type": "object",
+              "dynamic": true
+            },
+            "data": {
+              "type": "object",
+              "dynamic": true
+            },
+            "labels": {
+              "type": "object",
+              "dynamic": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "erp-request-logs-template",
+      "index_patterns": ["erp-*-request-*"],
+      "priority": 110,
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "5s"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": {
+              "type": "date"
+            },
+            "request_id": {
+              "type": "keyword"
+            },
+            "user_id": {
+              "type": "keyword"
+            },
+            "method": {
+              "type": "keyword"
+            },
+            "path": {
+              "type": "keyword"
+            },
+            "query": {
+              "type": "text"
+            },
+            "status_code": {
+              "type": "integer"
+            },
+            "duration_ms": {
+              "type": "long"
+            },
+            "user_agent": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 512
+                }
+              }
+            },
+            "remote_ip": {
+              "type": "ip"
+            },
+            "request_size_bytes": {
+              "type": "long"
+            },
+            "response_size_bytes": {
+              "type": "long"
+            },
+            "service": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "erp-error-logs-template",
+      "index_patterns": ["erp-*-error-*"],
+      "priority": 110,
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "1s"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": {
+              "type": "date"
+            },
+            "request_id": {
+              "type": "keyword"
+            },
+            "user_id": {
+              "type": "keyword"
+            },
+            "level": {
+              "type": "keyword"
+            },
+            "message": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "error": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "stack_trace": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "service": {
+              "type": "keyword"
+            },
+            "component": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            },
+            "context": {
+              "type": "object",
+              "dynamic": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "erp-event-logs-template",
+      "index_patterns": ["erp-*-event-*"],
+      "priority": 110,
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "5s"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": {
+              "type": "date"
+            },
+            "event_id": {
+              "type": "keyword"
+            },
+            "event_type": {
+              "type": "keyword"
+            },
+            "request_id": {
+              "type": "keyword"
+            },
+            "user_id": {
+              "type": "keyword"
+            },
+            "correlation_id": {
+              "type": "keyword"
+            },
+            "source": {
+              "type": "keyword"
+            },
+            "success": {
+              "type": "boolean"
+            },
+            "service": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            },
+            "data": {
+              "type": "object",
+              "dynamic": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "erp-metric-logs-template",
+      "index_patterns": ["erp-*-metric-*"],
+      "priority": 110,
+      "template": {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 0,
+          "index.refresh_interval": "10s"
+        },
+        "mappings": {
+          "properties": {
+            "@timestamp": {
+              "type": "date"
+            },
+            "metric_name": {
+              "type": "keyword"
+            },
+            "metric_type": {
+              "type": "keyword"
+            },
+            "value": {
+              "type": "double"
+            },
+            "unit": {
+              "type": "keyword"
+            },
+            "service": {
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword"
+            },
+            "labels": {
+              "type": "object",
+              "dynamic": true
+            }
+          }
+        }
+      }
+    }
+  ],
+  "lifecycle_policies": [
+    {
+      "name": "erp-logs-policy",
+      "policy": {
+        "phases": {
+          "hot": {
+            "actions": {
+              "rollover": {
+                "max_size": "1GB",
+                "max_age": "1d"
+              }
+            }
+          },
+          "warm": {
+            "min_age": "2d",
+            "actions": {
+              "allocate": {
+                "number_of_replicas": 0
+              }
+            }
+          },
+          "cold": {
+            "min_age": "7d",
+            "actions": {
+              "allocate": {
+                "number_of_replicas": 0
+              }
+            }
+          },
+          "delete": {
+            "min_age": "30d"
+          }
+        }
+      }
+    }
+  ]
+}
