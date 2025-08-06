@@ -239,8 +239,6 @@ prepare-environment:
 	@mkdir -p config/grafana/provisioning/datasources
 	@mkdir -p config/grafana/provisioning/dashboards
 	@mkdir -p config/grafana/dashboards
-	@mkdir -p websocket-server
-	@mkdir -p graphql-gateway/src
 	@mkdir -p backups
 	@echo "🔧 Setting up environment files..."
 	@if [ ! -f .env ]; then \
@@ -255,22 +253,6 @@ prepare-environment:
 	@if [ ! -f config/pgadmin/servers.json ] && [ -f config/pgadmin/servers.json.example ]; then \
 		cp config/pgadmin/servers.json.example config/pgadmin/servers.json; \
 		echo "✅ Created config/pgadmin/servers.json from example"; \
-	fi
-	@if [ ! -f websocket-server/package.json ] && [ -f websocket-server/package.json.example ]; then \
-		cp websocket-server/package.json.example websocket-server/package.json; \
-		echo "✅ Created websocket-server/package.json from example"; \
-	fi
-	@if [ ! -f websocket-server/server.js ] && [ -f websocket-server/server.js.example ]; then \
-		cp websocket-server/server.js.example websocket-server/server.js; \
-		echo "✅ Created websocket-server/server.js from example"; \
-	fi
-	@if [ ! -f websocket-server/.env ] && [ -f websocket-server/.env.example ]; then \
-		cp websocket-server/.env.example websocket-server/.env; \
-		echo "✅ Created websocket-server/.env from example"; \
-	fi
-	@if [ ! -f graphql-gateway/.env ] && [ -f graphql-gateway/.env.example ]; then \
-		cp graphql-gateway/.env.example graphql-gateway/.env; \
-		echo "✅ Created graphql-gateway/.env from example"; \
 	fi
 	@echo "✅ Environment preparation complete!"
 
@@ -292,7 +274,7 @@ check-ports:
 	@echo ""
 	@echo "📋 Required Ports:"
 	@OS=$$($(MAKE) -s detect-os); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 8500:Consul 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	conflicts=0; \
 	for port_info in $$ports; do \
 		port=$$(echo $$port_info | cut -d: -f1); \
@@ -408,8 +390,8 @@ run:
 	@echo "  Phase 2: Document & Vector Stores (MongoDB, Qdrant)"
 	@echo "  Phase 3: Message Broker (Kafka)"
 	@echo "  Phase 4: Search Engine (Elasticsearch)"
-	@echo "  Phase 5: API Layer (GraphQL Gateway, gRPC Registry)"
-	@echo "  Phase 6: WebSocket Server"
+	@echo "  Phase 5: API Layer (gRPC Registry)"
+	@echo "  Phase 6: Server"
 	@echo "  Phase 7: Logging (Kibana)"
 	@echo "  Phase 8: Development Tools"
 	@echo "  Phase 9: Core Application Services"
@@ -435,12 +417,9 @@ run:
 	@sleep 2
 	@echo "🔄 Phase 5: Starting API layer..."
 	@docker compose up -d grpc-registry
-	@docker compose up -d graphql-gateway
 	@echo "✅ Phase 5 complete: API layer ready"
 	@sleep 2
-	@echo "🔄 Phase 6: Starting WebSocket server..."
-	@docker compose up -d websocket-server
-	@echo "✅ Phase 6 complete: WebSocket server ready"
+	@echo "✅ Phase 6 complete: Startup system"
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
 	@docker compose up -d kibana
@@ -495,8 +474,8 @@ start-proxy-services:
 	@echo "  Phase 2: Document & Vector Stores (MongoDB, Qdrant)"
 	@echo "  Phase 3: Message Broker (Kafka)"
 	@echo "  Phase 4: Search Engine (Elasticsearch)"
-	@echo "  Phase 5: API Layer (GraphQL Gateway, gRPC Registry)"
-	@echo "  Phase 6: WebSocket Server"
+	@echo "  Phase 5: API Layer (gRPC Registry)"
+	@echo "  Phase 6: Server"
 	@echo "  Phase 7: Logging (Kibana)"
 	@echo "  Phase 8: Development Tools"
 	@echo "  Phase 9: Core Application Services"
@@ -527,14 +506,9 @@ start-proxy-services:
 	@echo "🔄 Phase 5: Starting API layer..."
 	@docker compose up -d grpc-registry
 	@$(MAKE) wait-for-service SERVICE=grpc-registry
-	@docker compose up -d graphql-gateway
-	@$(MAKE) wait-for-service SERVICE=graphql-gateway
 	@echo "✅ Phase 5 complete: API layer ready"
 	@sleep 2
-	@echo "🔄 Phase 6: Starting WebSocket server..."
-	@docker compose up -d websocket-server
-	@$(MAKE) wait-for-service SERVICE=websocket-server
-	@echo "✅ Phase 6 complete: WebSocket server ready"
+	@echo "✅ Phase 6 complete: server ready"
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
 	@docker compose up -d kibana
@@ -656,17 +630,8 @@ http { \
     limit_req_zone $$binary_remote_addr zone=api:10m rate=10r/s; \
     limit_req_zone $$binary_remote_addr zone=admin:10m rate=5r/s; \
 \
-    # Upstream definitions \
-    upstream graphql_backend { \
-        server graphql-gateway:4000; \
-    } \
-\
     upstream api_gateway_backend { \
         server api-gateway:8000; \
-    } \
-\
-    upstream websocket_backend { \
-        server websocket-server:3001; \
     } \
 \
     upstream frontend_backend { \
@@ -741,7 +706,7 @@ http { \
         # GraphQL API \
         location /graphql { \
             limit_req zone=api burst=20 nodelay; \
-            proxy_pass http://graphql_backend; \
+            proxy_pass http://api_gateway_backend/graphql; \
             proxy_http_version 1.1; \
             proxy_set_header Host $$host; \
             proxy_set_header X-Real-IP $$remote_addr; \
@@ -749,17 +714,7 @@ http { \
             proxy_set_header X-Forwarded-Proto $$scheme; \
         } \
 \
-        # GraphQL Playground \
-        location /playground { \
-            proxy_pass http://graphql_backend; \
-            proxy_http_version 1.1; \
-            proxy_set_header Host $$host; \
-            proxy_set_header X-Real-IP $$remote_addr; \
-            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for; \
-            proxy_set_header X-Forwarded-Proto $$scheme; \
-        } \
-\
-        # Django API Gateway \
+        # API Gateway \
         location /api/v1/ { \
             limit_req zone=api burst=20 nodelay; \
             proxy_pass http://api_gateway_backend; \
@@ -794,7 +749,7 @@ http { \
 \
         # WebSocket \
         location /socket.io/ { \
-            proxy_pass http://websocket_backend; \
+            proxy_pass http://api_gateway_backend/ws; \
             proxy_http_version 1.1; \
             proxy_set_header Upgrade $$http_upgrade; \
             proxy_set_header Connection "upgrade"; \
@@ -1018,7 +973,7 @@ status:
 	@echo ""
 	@echo "🌐 Port Status:"
 	@OS=$(uname); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 4000:GraphQL 8500:Consul 3001:WebSocket 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
+	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 8500:Consul 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	for port_info in $ports; do \
 		port=$(echo $port_info | cut -d: -f1); \
 		service=$(echo $port_info | cut -d: -f2); \
@@ -1069,8 +1024,6 @@ expose-dev:
 print-dev:
 	echo "🌐 Network Access:"; \
 	echo "📋 API Layer:"; \
-	echo "  GraphQL Gateway:     http://localhost:4000/graphql"; \
-	echo "  GraphQL Playground:  http://localhost:4000/playground"; \
 	echo "  gRPC Registry:       http://localhost:8500"; \
 	echo ""; \
 	echo "📋 Infrastructure Services:"; \
@@ -1080,7 +1033,6 @@ print-dev:
 	echo "  Qdrant:              http://localhost:6333"; \
 	echo "  Kafka:               localhost:9092"; \
 	echo "  Elasticsearch:       http://localhost:9200 (elastic/password)"; \
-	echo "  WebSocket:           http://localhost:3001"; \
 	echo ""; \
 	echo "📋 Development Tools:"; \
 	echo "  pgAdmin:             http://localhost:8081 (admin@erp.com/admin)"; \
@@ -1102,8 +1054,6 @@ print-info:
 	echo "  Replace 'localhost' with '$$network_ip' to access from other devices"; \
 	echo ""; \
 	echo "📋 API Layer:"; \
-	echo "  GraphQL Gateway:     http://$$network_ip:4000/graphql"; \
-	echo "  GraphQL Playground:  http://$$network_ip:4000/playground"; \
 	echo "  gRPC Registry:       http://$$network_ip:8500"; \
 	echo ""; \
 	echo "📋 Infrastructure Services:"; \
@@ -1113,7 +1063,8 @@ print-info:
 	echo "  Qdrant:              http://$$network_ip:6333"; \
 	echo "  Kafka:               $$network_ip:9092"; \
 	echo "  Elasticsearch:       http://$$network_ip:9200 (elastic/password)"; \
-	echo "  WebSocket:           http://$$network_ip:3001"; \
+	
+
 	echo ""; \
 	echo "📋 Development Tools:"; \
 	echo "  pgAdmin:             http://$$network_ip:8081 (admin@erp.com/admin)"; \
@@ -1169,12 +1120,9 @@ print-proxy-info:
 	echo ""; \
 	echo "📋 Public Endpoints:"; \
 	echo "  Frontend:           http://$$network_ip/"; \
-	echo "  GraphQL API:        http://$$network_ip/graphql"; \
-	echo "  GraphQL Playground: http://$$network_ip/playground"; \
 	echo "  Django API:         http://$$network_ip/api/v1/"; \
 	echo "  Auth Service:       http://$$network_ip/auth/"; \
 	echo "  Log Service:        http://$$network_ip/logs/"; \
-	echo "  WebSocket:          ws://$$network_ip/socket.io/"; \
 	echo ""; \
 	echo "🔧 Admin Tools (admin/admin123):"; \
 	echo "  pgAdmin:            http://$$network_ip/admin/pgadmin/"; \

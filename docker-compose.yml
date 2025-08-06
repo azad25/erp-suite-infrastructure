@@ -230,48 +230,6 @@ services:
   # API GATEWAY & COMMUNICATION LAYER
   # ============================================================================
 
-  # GraphQL Gateway (Apollo Server + Express)
-  graphql-gateway:
-    image: node:18-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-graphql-gateway
-    user: "1000:1000"
-    working_dir: /app
-    command: sh -c "npm install && npm run dev"
-    environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redispassword}@redis:6379
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-erp_system}
-      GRPC_AUTH_SERVICE: auth-service:${GRPC_AUTH_PORT:-50051}
-      GRPC_CRM_SERVICE: crm-service:${GRPC_CRM_PORT:-50052}
-      GRPC_HRM_SERVICE: hrm-service:${GRPC_HRM_PORT:-50053}
-      GRPC_FINANCE_SERVICE: finance-service:${GRPC_FINANCE_PORT:-50054}
-      GRPC_INVENTORY_SERVICE: inventory-service:${GRPC_INVENTORY_PORT:-50055}
-      GRPC_PROJECT_SERVICE: project-service:${GRPC_PROJECT_PORT:-50056}
-      PORT: ${GRAPHQL_GATEWAY_PORT:-4000}
-      ENABLE_PLAYGROUND: ${GRAPHQL_ENABLE_PLAYGROUND:-true}
-      ENABLE_INTROSPECTION: ${GRAPHQL_ENABLE_INTROSPECTION:-true}
-      QUERY_CACHE_TTL: ${GRAPHQL_QUERY_CACHE_TTL:-300}
-      DATALOADER_CACHE_TTL: ${GRAPHQL_DATALOADER_CACHE_TTL:-60}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      NPM_CONFIG_CACHE: /app/.npm
-      NPM_CONFIG_PREFIX: /app/.npm-global
-    ports:
-      - "${GRAPHQL_GATEWAY_PORT:-4000}:${GRAPHQL_GATEWAY_PORT:-4000}"
-    volumes:
-      - ./graphql-gateway:/app
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${GRAPHQL_GATEWAY_PORT:-4000}/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - api-layer
-
   # gRPC Service Registry & Load Balancer (Consul)
   grpc-registry:
     image: consul:1.15
@@ -285,36 +243,6 @@ services:
     volumes:
       - consul_data:/consul/data
     # Health check removed - Service discovery is not critical for startup
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - api-layer
-
-  # WebSocket Server (Node.js with Socket.IO) - Enhanced for GraphQL subscriptions
-  websocket-server:
-    image: node:18-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-websocket
-    working_dir: /app
-    command: sh -c "npm install && npm start"
-    environment:
-      NODE_ENV: ${NODE_ENV:-development}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redispassword}@redis:6379
-      GRAPHQL_GATEWAY_URL: http://graphql-gateway:${GRAPHQL_GATEWAY_PORT:-4000}/graphql
-      PORT: ${WEBSOCKET_PORT:-3001}
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    ports:
-      - "${WEBSOCKET_PORT:-3001}:${WEBSOCKET_PORT:-3001}"
-    volumes:
-      - ./websocket-server:/app
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${WEBSOCKET_PORT:-3001}/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
     networks:
       - erp-network
     profiles:
@@ -339,10 +267,6 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
-      graphql-gateway:
-        condition: service_started
-      websocket-server:
-        condition: service_started
       erp-frontend:
         condition: service_started
       api-gateway:
@@ -507,7 +431,7 @@ services:
       # Server Configuration
       PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
       GIN_MODE: debug
-      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:4000,http://erp-frontend:3000,http://graphql-gateway:4000,http://api-gateway:8000
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:4000,http://erp-frontend:3000,http://api-gateway:8000
       
       # gRPC Configuration
       GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
@@ -620,7 +544,7 @@ services:
       ERP_JWT_ISSUER: erp-auth-service
       
       # CORS Configuration
-      ERP_SERVER_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000,http://graphql-gateway:4000,http://websocket-server:3001
+      ERP_SERVER_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000
       ERP_SERVER_CORS_ALLOWED_METHODS: GET,POST,PUT,DELETE,OPTIONS,PATCH
       ERP_SERVER_CORS_ALLOWED_HEADERS: Authorization,Content-Type,X-Requested-With,Accept,Origin
       ERP_SERVER_CORS_ALLOW_CREDENTIALS: true
@@ -654,7 +578,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:${API_GATEWAY_PORT:-8000}/health"]
       interval: 60s
       timeout: 15s
-      retries: 5
+      retries: 1
       start_period: 60s
     networks:
       - erp-network
@@ -674,16 +598,20 @@ services:
       - NEXT_TELEMETRY_DISABLED=1
       - NODE_OPTIONS=--max-old-space-size=4096
       - WATCHPACK_POLLING=false
+      - DOCKER_ENV=true
+      # LightningCSS configuration for Docker
+      - npm_config_target_platform=linux
+      - npm_config_target_libc=musl
+      - npm_config_cache=/app/.npm
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:
       - ../erp-frontend:/app
       - frontend_next:/app/.next
+      - frontend_node_modules:/app/node_modules
     depends_on:
       api-gateway:
-        condition: service_healthy
-      graphql-gateway:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 60s
