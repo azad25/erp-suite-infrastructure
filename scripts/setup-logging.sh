@@ -315,10 +315,33 @@ setup_kibana_index_patterns() {
 create_kafka_topics() {
     log_info "Creating Kafka topics for logging..."
     
-    # Check if Kafka is available
-    if ! command -v kafka-topics.sh &> /dev/null; then
-        log_warning "kafka-topics.sh not found, skipping Kafka topic creation"
+    # Check if Kafka container is running
+    if ! docker compose ps kafka | grep -q "Up"; then
+        log_warning "Kafka container is not running, skipping Kafka topic creation"
         return 0
+    fi
+    
+    # Wait for Kafka to be ready
+    log_info "Waiting for Kafka to be ready..."
+    local max_attempts=30
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:29092 > /dev/null 2>&1; then
+            log_success "Kafka is ready!"
+            break
+        fi
+        
+        if [ $((attempt % 5)) -eq 0 ]; then
+            log_info "Attempt $attempt/$max_attempts: Kafka not ready yet..."
+        fi
+        sleep 5
+        ((attempt++))
+    done
+    
+    if [ $attempt -gt $max_attempts ]; then
+        log_error "Kafka is not ready after $max_attempts attempts, skipping topic creation"
+        return 1
     fi
     
     # Topics for different log types
@@ -332,19 +355,44 @@ create_kafka_topics() {
         "api-events"
         "system-events"
         "dead-letter-queue"
+        "log-aggregation"
+        "performance-metrics"
+        "security-events"
+        "audit-logs"
     )
     
+    log_info "Creating Kafka topics..."
     for topic in "${topics[@]}"; do
         log_info "Creating Kafka topic: $topic"
-        kafka-topics.sh --create \
-            --bootstrap-server localhost:9092 \
+        
+        # Use docker compose exec to run kafka-topics inside the container
+        if docker compose exec -T kafka kafka-topics \
+            --create \
+            --bootstrap-server localhost:29092 \
             --topic "$topic" \
             --partitions 3 \
             --replication-factor 1 \
-            --if-not-exists > /dev/null 2>&1 || true
+            --if-not-exists > /dev/null 2>&1; then
+            log_success "✅ Topic '$topic' created successfully"
+        else
+            log_warning "⚠️  Failed to create topic '$topic' (may already exist)"
+        fi
     done
     
-    log_success "Kafka topics created!"
+    # List created topics to verify
+    log_info "Verifying created topics..."
+    if docker compose exec -T kafka kafka-topics --list --bootstrap-server localhost:29092 > /tmp/kafka_topics.txt 2>/dev/null; then
+        topic_count=$(wc -l < /tmp/kafka_topics.txt)
+        log_success "Kafka topics verification complete! Found $topic_count topics:"
+        while IFS= read -r topic; do
+            log_info "  • $topic"
+        done < /tmp/kafka_topics.txt
+        rm -f /tmp/kafka_topics.txt
+    else
+        log_warning "Could not verify Kafka topics"
+    fi
+    
+    log_success "Kafka topics setup completed!"
 }
 
 # Main setup function
