@@ -607,11 +607,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
-          cpus: '0.5'
-        reservations:
-          memory: 384M
-          cpus: '0.25'
+          memory: 1G
+          cpus: '1.0'
     networks:
       - erp-network
     profiles:
@@ -687,11 +684,11 @@ services:
       CORS_MAX_AGE: 86400
       
       # WebSocket Configuration (matching config.yaml structure)
-      WEBSOCKET_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000
-      WEBSOCKET_PATH: /ws
-      WEBSOCKET_ENABLE_COMPRESSION: true
-      WEBSOCKET_READ_BUFFER_SIZE: 1024
-      WEBSOCKET_WRITE_BUFFER_SIZE: 1024
+      WS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000
+      WEBSOCKET_ENDPOINT: /ws
+      WS_ENABLE_COMPRESSION: true
+      WS_READ_BUFFER_SIZE: 1024
+      WS_WRITE_BUFFER_SIZE: 1024
       
       # Logging Configuration (matching config.yaml structure)
       LOGGING_LEVEL: ${LOG_LEVEL:-info}
@@ -730,10 +727,7 @@ services:
       resources:
         limits:
           memory: 1G
-          cpus: '0.5'
-        reservations:
-          memory: 512M
-          cpus: '0.25'
+          cpus: '1.0'
     networks:
       - erp-network
     profiles:
@@ -779,9 +773,6 @@ services:
         limits:
           memory: 2G
           cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
     networks:
       - erp-network
     profiles:
@@ -834,9 +825,6 @@ services:
         limits:
           memory: 256M
           cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
     networks:
       - erp-network
     profiles:
