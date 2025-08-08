@@ -1,8 +1,8 @@
 {
   "Servers": {
     "1": {
-      "Name": "UniBase ERP PostgreSQL",
-      "Group": "ERP Suite Databases",
+      "Name": "unibase_erp",
+      "Group": "unibase_db_network",
       "Host": "postgres",
       "Port": 5432,
       "MaintenanceDB": "erp_system",
