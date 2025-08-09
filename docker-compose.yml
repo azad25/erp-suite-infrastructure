@@ -604,11 +604,6 @@ services:
       timeout: 10s
       retries: 2
       start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
     networks:
       - erp-network
     profiles:
