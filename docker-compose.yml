@@ -739,15 +739,20 @@ services:
       - .env.frontend
     environment:
       - NEXT_TELEMETRY_DISABLED=1
-      - NODE_OPTIONS=--max-old-space-size=1024
+      # Increased memory limit for Next.js development server
+      - NODE_OPTIONS=--max-old-space-size=2048 --max-semi-space-size=128
       - WATCHPACK_POLLING=false
       - DOCKER_ENV=true
       - npm_config_target_platform=linux
       - npm_config_target_libc=musl
       - npm_config_cache=/app/.npm
-      # Disable source maps and other dev features for lower memory usage
+      # Memory optimization settings
       - GENERATE_SOURCEMAP=false
       - DISABLE_ESLINT_PLUGIN=true
+      - NEXT_WEBPACK_USEPOLLING=false
+      - NEXT_DISABLE_TURBOPACK=false
+      # Garbage collection optimization
+      - NODE_GC_INTERVAL=100
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:
@@ -758,11 +763,20 @@ services:
       api-gateway:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "/app/scripts/health-check.js"]
       interval: 300s
-      timeout: 10s
-      retries: 2
-      start_period: 90s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+    # Docker resource limits to prevent memory issues
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
     networks:
       - erp-network
     profiles:
