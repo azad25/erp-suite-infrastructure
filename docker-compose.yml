@@ -12,7 +12,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       # Multiple database creation (handled by PostgreSQL init)
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-erp_auth,erp_crm,erp_hrm,erp_finance,erp_inventory,erp_projects,erp_gateway,erp_analytics}
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-erp_auth,erp_crm,erp_hrm,erp_finance,erp_inventory,erp_projects,erp_gateway,erp_analytics,erp_ai_copilot}
       # Memory optimization
       POSTGRES_SHARED_BUFFERS: 64MB
       POSTGRES_EFFECTIVE_CACHE_SIZE: 128MB
@@ -769,7 +769,7 @@ services:
       auth-service:
         condition: service_started
       ai-copilot:
-        condition: service_started
+        condition: service_healthy
     # healthcheck:
     #   test: ["CMD", "curl", "-f", "http://localhost:${API_GATEWAY_PORT:-8000}/health"]
     #   interval: 300s
@@ -801,11 +801,53 @@ services:
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=development
       - LOG_LEVEL=info
+      - HOST=0.0.0.0
+      - PORT=8003
+      
+      # Database Configuration
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=erp_ai_copilot
+      - DB_USER=${POSTGRES_USER:-postgres}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DB_SSL_MODE=disable
+      - DB_MAX_CONNECTIONS=20
+      - DB_MIN_CONNECTIONS=5
+      
+      # MongoDB Configuration
+      - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-root}:${MONGODB_ROOT_PASSWORD:-password}@mongodb:27017/
+      - MONGODB_DATABASE=erp_ai_conversations
+      - MONGODB_MAX_POOL_SIZE=10
+      - MONGODB_MIN_POOL_SIZE=1
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispassword}
+      - REDIS_DB=0
+      - REDIS_POOL_SIZE=10
+      
+      # Qdrant Configuration
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_GRPC_PORT=6334
+      - QDRANT_API_KEY=
+      - QDRANT_TIMEOUT=30
+      
+      # Kafka Configuration
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_TOPIC_PREFIX=ai-copilot
+      - KAFKA_CLIENT_ID=ai-copilot-service
+      - KAFKA_GROUP_ID=ai-copilot-group
+      - KAFKA_AUTO_OFFSET_RESET=earliest
       
       # AI Model Configuration
-      - OLLAMA_BASE_URL=http://localhost:11434
+      - OLLAMA_BASE_URL=http://172.17.0.1:11434
       - DEFAULT_LLM_PROVIDER=ollama
       - DEFAULT_MODEL=unibase-erp
+      - AI_DEFAULT_MODEL=unibase-erp
+      - AI_MAX_TOKENS=4000
+      - AI_TEMPERATURE=0.7
       
       # API Configuration
       - API_HOST=0.0.0.0
@@ -813,10 +855,14 @@ services:
       - GRPC_PORT=50055
       
       # CORS Configuration
-      - CORS_ORIGINS=http://localhost:3000,http://erp-frontend:3000,http://localhost:8003
+      - CORS_ORIGINS=http://localhost:3000,http://erp-frontend:3000,http://localhost:8003,http://localhost,http://localhost:8000
+      - SECURITY_CORS_ORIGINS=http://localhost:3000,http://erp-frontend:3000,http://localhost:8003,http://localhost
       
       # Security
       - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - SECURITY_JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - SECURITY_JWT_ALGORITHM=HS256
+      - SECURITY_JWT_EXPIRY_HOURS=24
       
       # Resource Limits
       - MAX_CONCURRENT_REQUESTS=100
@@ -827,41 +873,68 @@ services:
       - AGENT_TIMEOUT_SECONDS=60
       - AGENT_MAX_RETRIES=3
       - AGENT_MEMORY_TTL_HOURS=24
+      - AGENT_MAX_CONCURRENT=10
       
       # WebSocket Configuration
       - WS_MAX_CONNECTIONS=1000
       - WS_HEARTBEAT_INTERVAL=30
       - WS_CONNECTION_TIMEOUT=300
+      - WS_MAX_MESSAGE_SIZE=1048576
       
       # gRPC Configuration
       - GRPC_MAX_WORKERS=10
       - GRPC_MAX_CONCURRENT_RPCS=100
+      - GRPC_MAX_CONNECTION_IDLE=300
+      - GRPC_MAX_CONNECTION_AGE=600
+      - GRPC_MAX_MESSAGE_SIZE=52428800
+      
+      # RAG Configuration
+      - RAG_ENABLED=true
+      - RAG_COLLECTION_PREFIX=erp
+      - RAG_EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - RAG_SIMILARITY_THRESHOLD=0.75
+      - RAG_MAX_RESULTS=10
+      - RAG_CHUNK_SIZE=1000
+      - RAG_CHUNK_OVERLAP=200
       
       # Monitoring
       - METRICS_ENABLED=true
       - HEALTH_CHECK_INTERVAL=30
+      - MONITORING_METRICS_ENABLED=true
+      - MONITORING_HEALTH_CHECK_INTERVAL=30
+      - MONITORING_PROMETHEUS_PORT=9090
+      - MONITORING_LOG_LEVEL=info
+      - MONITORING_LOG_FORMAT=json
       
     volumes:
-      - ../erp-ai-copilot-service:/app
+      - ../erp-ai-copilot:/app
       - ./logs:/app/logs
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      kafka:
+        condition: service_started
     networks:
       - erp-network
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 8G
           cpus: '1.0'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 30s
-      timeout: 10s
+      interval: 300s
+      timeout: 100s
       retries: 3
       start_period: 60s
-    command: ["python", "run_simple.py"]  # Use the simplified service
+    command: ["python", "cmd/server.py", "--mode", "full", "--provider", "ollama", "--host", "0.0.0.0", "--port", "8003"]
     profiles:
       - ai-services
       - full-stack

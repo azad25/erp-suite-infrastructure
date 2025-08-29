@@ -12,6 +12,7 @@ SELECT 'CREATE DATABASE erp_gateway' WHERE NOT EXISTS (SELECT FROM pg_database W
 SELECT 'CREATE DATABASE erp_analytics' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'erp_analytics')\gexec
 SELECT 'CREATE DATABASE erp_subscription' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'erp_subscription')\gexec
 SELECT 'CREATE DATABASE erp_sales' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'erp_sales')\gexec
+SELECT 'CREATE DATABASE erp_ai_copilot' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'erp_ai_copilot')\gexec
 
 -- Grant privileges to postgres user (already has superuser privileges, but explicit for clarity)
 -- These commands will only run if the databases were created
@@ -44,3 +45,6 @@ GRANT ALL PRIVILEGES ON DATABASE erp_subscription TO postgres;
 
 \c erp_sales
 GRANT ALL PRIVILEGES ON DATABASE erp_sales TO postgres;
+
+\c erp_ai_copilot
+GRANT ALL PRIVILEGES ON DATABASE erp_ai_copilot TO postgres;
