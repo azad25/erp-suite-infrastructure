@@ -1,4 +1,4 @@
-# Use the 8B model, Q4_K_M quantization is a great balance
+# Use the 4B gemma/llama or other models for maximum efficiency
 FROM gemma3:latest
 
 # Set a moderate temperature for reproducible, factual results.
@@ -10,13 +10,10 @@ PARAMETER temperature 0.1
 PARAMETER top_p 0.9
 
 # Model parameters for better performance
-PARAMETER num_ctx 8192
+PARAMETER num_ctx 2048
 PARAMETER repeat_penalty 1.1
 PARAMETER top_k 40
-
-# Hybrid GPU+CPU mode optimized for GTX 1050 Ti (4GB VRAM)
-# Optimized setting: more layers on GPU for better performance
-PARAMETER num_gpu 25
+PARAMETER num_gpu 34
 
 # Update template with more specific instructions
 TEMPLATE """
