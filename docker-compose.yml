@@ -739,7 +739,7 @@ services:
       
       # WebSocket Configuration (matching config.yaml structure)
       WS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000
-      WEBSOCKET_ENDPOINT: /ws
+      WEBSOCKET_ENDPOINT: /chat
       WEBSOCKET_SERVER_HOST: ai-copilot
       WEBSOCKET_SERVER_PORT: 8003
       WS_ENABLE_COMPRESSION: true
