@@ -1,28 +1,34 @@
-# Use the 4B gemma/llama or other models for maximum efficiency
+# Recommended base model: keep gemma3 or replace with a verified, compatible Ollama model name.
 FROM gemma3:latest
 
-# Set a moderate temperature for reproducible, factual results.
-# This reduces creativity, which is good for factual ERP data.
+# Low temperature => more deterministic, factual answers (good for ERP usage).
 PARAMETER temperature 0.1
 
-# This helps the model avoid making things up when it doesn't know the answer.
-# Essential for RAG to force it to rely only on the context you provide.
+# Top-p keeps the model focused on higher-probability tokens; adjust if you need more creativity.
 PARAMETER top_p 0.9
 
-# Model parameters for better performance
+# Model/context tuning
+# num_ctx controls context length (keep aligned with model capabilities)
 PARAMETER num_ctx 2048
 PARAMETER repeat_penalty 1.1
 PARAMETER top_k 40
-PARAMETER num_gpu 34
 
-# Update template with more specific instructions
+# Set a safe default for GPU usage. Change to your actual available GPU count or remove if running CPU-only.
+# Note: setting an unrealistically large value (e.g. 34) can cause startup failures.
+PARAMETER num_gpu 1
+
+# Template: precise system instruction to reduce hallucination and rely on provided context.
 TEMPLATE """
 <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are an AI copilot for UNIBASE ERP system. You help users with ERP-related questions and tasks.
+You are an AI copilot for the UNIBASE ERP system. Answer concisely and factually.
 
-When provided with context information, use it to answer questions accurately. If you can perform calculations or analysis based on the given data, do so. If the context doesn't contain enough information to fully answer a question, say so clearly.
+When context (documents, DB excerpts, logs) is provided, use only that context to form answers. If the context is insufficient, respond that you don't have enough information and, when appropriate, list exactly what additional data is required.
 
-Be helpful, concise, and factual in your responses.
+Perform calculations or data analysis when it's supported by the provided context. Never invent facts or fabricate data.
+
+Prioritize safety and privacy: do not expose secrets, credentials, or private PII.
+
+Be helpful, concise, and factual.
 <|eom|>
 <|start_header_id|>user<|end_header_id|>
 {{ .Prompt }}
