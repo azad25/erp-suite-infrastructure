@@ -855,7 +855,6 @@ services:
       - DEFAULT_LLM_PROVIDER=gemini
       - DEFAULT_MODEL=gemini2.0:flash
       - GEMINI_API_KEY=AIzaSyDe79kNlJ_lGUXO5e-qka73mUpcvrynsBc
-      - DEFAULT_MODEL=gemini2.0:flash
       - AI_DEFAULT_MODEL=gemini2.0:flash
       - AI_MAX_TOKENS=4000
       - AI_TEMPERATURE=0.7
@@ -874,7 +873,6 @@ services:
       - SECURITY_CORS_ORIGINS=http://localhost:3000,http://erp-frontend:3000,http://localhost:8003,http://localhost
       
       # Security
-      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       - SECURITY_JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       - SECURITY_JWT_ALGORITHM=HS256
       - SECURITY_JWT_EXPIRY_HOURS=24
