@@ -949,7 +949,7 @@ services:
       timeout: 100s
       retries: 3
       start_period: 60s
-    command: ["python", "cmd/server.py", "--mode", "full", "--provider", "GeminiProvider", "--host", "0.0.0.0", "--port", "8003"]
+    command: ["python", "cmd/server.py", "--mode", "full", "--provider", "gemini", "--host", "0.0.0.0", "--port", "8003"]
     profiles:
       - ai-services
       - full-stack
