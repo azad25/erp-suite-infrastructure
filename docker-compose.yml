@@ -799,7 +799,7 @@ services:
   ai-copilot:
     build:
       context: ../erp-ai-copilot
-      dockerfile: Dockerfile
+      dockerfile: ${AI_COPILOT_DOCKERFILE:-Dockerfile}
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-ai-copilot
     ports:
       - "8003:8003"  # HTTP API
@@ -812,6 +812,7 @@ services:
       - LOG_LEVEL=info
       - HOST=0.0.0.0
       - PORT=8003
+      - RELOAD=${AI_COPILOT_RELOAD:-false}
       
       # Database Configuration
       - DB_HOST=postgres
@@ -920,7 +921,10 @@ services:
       - MONITORING_LOG_FORMAT=json
       
     volumes:
-      - ../erp-ai-copilot:/app
+      # Mount source code for hot reloading in development
+      - ../erp-ai-copilot/app:/app/app:ro
+      - ../erp-ai-copilot/requirements.txt:/app/requirements.txt:ro
+      - ../erp-ai-copilot/config:/app/config:ro
       - ./logs:/app/logs
       - ./data:/app/data
     depends_on:
