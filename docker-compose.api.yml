@@ -1,0 +1,36 @@
+# API Layer: gRPC registry (Consul)
+services:
+  # gRPC Service Registry & Load Balancer (Consul - optimized for low resource usage)
+  grpc-registry:
+    image: consul:1.15
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-grpc-registry
+    command: consul agent -dev -client=0.0.0.0 -ui -log-level=WARN
+    environment:
+      CONSUL_BIND_INTERFACE: eth0
+      CONSUL_DISABLE_PPROF: true
+      CONSUL_DISABLE_KEYRING_FILE: true
+    ports:
+      - "${CONSUL_PORT:-8500}:8500"
+      - "${CONSUL_DNS_PORT:-8600}:8600/udp"
+    volumes:
+      - consul_data:/consul/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/status/leader"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - api-layer

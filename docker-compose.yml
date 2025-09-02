@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # ============================================================================
   # DATABASES
@@ -5,181 +7,27 @@ services:
   
   # PostgreSQL - Primary relational database (Optimized for low resource usage)
   postgres:
-    image: postgres:15-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-erp_system}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      # Multiple database creation (handled by PostgreSQL init)
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-erp_auth,erp_crm,erp_hrm,erp_finance,erp_inventory,erp_projects,erp_gateway,erp_analytics,erp_ai_copilot}
-      # Memory optimization
-      POSTGRES_SHARED_BUFFERS: 64MB
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 128MB
-      POSTGRES_WORK_MEM: 2MB
-      POSTGRES_MAINTENANCE_WORK_MEM: 32MB
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
-    command: >
-      postgres
-      -c shared_buffers=64MB
-      -c effective_cache_size=128MB
-      -c work_mem=2MB
-      -c maintenance_work_mem=32MB
-      -c max_connections=25
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=100
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=4MB
-      -c default_statistics_target=50
-      -c log_statement=none
-      -c log_duration=off
-      -c log_lock_waits=off
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
+    extends:
+      file: docker-compose.base.yml
+      service: postgres
 
   # MongoDB - Analytics, logs, AI conversations (Optimized for low resource usage)
   mongodb:
-    image: mongo:6.0-jammy
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
-      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
-      # Additional databases will be created by init script
-      MONGODB_DATABASES: "erp_analytics,erp_logs,erp_ai_conversations,erp_audit_trail,erp_notifications,erp_sessions,erp_cache"
-    command: >
-      bash -c "
-        chmod 777 /tmp &&
-        exec docker-entrypoint.sh mongod --auth --bind_ip_all 
-        --wiredTigerCacheSizeGB 0.1 
-        --wiredTigerCollectionBlockCompressor snappy
-        --wiredTigerIndexPrefixCompression true
-        --quiet
-        --logpath /dev/null
-        --nojournal
-      "
-    ports:
-      - "${MONGODB_PORT:-27017}:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - ./init-mongodb.js:/docker-entrypoint-initdb.d/init-mongodb.js:ro
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-          cpus: '0.25'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
+    extends:
+      file: docker-compose.base.yml
+      service: mongodb
 
   # Redis - Cache, sessions, queues (Optimized for low resource usage)
   redis:
-    image: redis:7-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-redis
-    command: >
-      redis-server
-      --appendonly yes
-      --requirepass ${REDIS_PASSWORD:-redispassword}
-      --maxmemory 64mb
-      --maxmemory-policy allkeys-lru
-      --save 900 1
-      --save 300 10
-      --save 60 10000
-      --tcp-keepalive 60
-      --timeout 300
-      --databases 8
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redispassword}", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-        reservations:
-          memory: 64M
-          cpus: '0.1'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
+    extends:
+      file: docker-compose.base.yml
+      service: redis
 
   # Qdrant - Vector database for AI/RAG (Optimized for low resource usage)
   qdrant:
-    image: qdrant/qdrant:v1.7.4
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-qdrant
-    ports:
-      - "${QDRANT_HTTP_PORT:-6333}:6333"
-      - "${QDRANT_GRPC_PORT:-6334}:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    environment:
-      QDRANT__SERVICE__HTTP_PORT: 6333
-      QDRANT__SERVICE__GRPC_PORT: 6334
-      QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: 16
-      QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS: 2
-      QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB: 100000
-      QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD_KB: 10000
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - ai-services
+    extends:
+      file: docker-compose.base.yml
+      service: qdrant
 
   # ============================================================================
   # MESSAGE BROKERS
@@ -187,72 +35,9 @@ services:
 
   # Kafka - Event streaming (KRaft mode - optimized for low resource usage)
   kafka:
-    image: confluentinc/cp-kafka:7.4.0
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kafka
-    user: "1000:1000"
-    environment:
-      # KRaft Configuration
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://0.0.0.0:${KAFKA_PORT:-9092},CONTROLLER://0.0.0.0:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://kafka:${KAFKA_PORT:-9092}
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      
-      # Topic Configuration (minimal for low resource usage)
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_NUM_PARTITIONS: 1
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      
-      # Log Configuration (minimal retention for low resource usage)
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      KAFKA_LOG_RETENTION_HOURS: 2
-      KAFKA_LOG_SEGMENT_BYTES: 67108864
-      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
-      KAFKA_LOG_CLEANUP_POLICY: delete
-      KAFKA_LOG_RETENTION_BYTES: 268435456
-      
-      # Performance Configuration (minimal threads for low resource usage)
-      KAFKA_NUM_NETWORK_THREADS: 1
-      KAFKA_NUM_IO_THREADS: 2
-      KAFKA_SOCKET_SEND_BUFFER_BYTES: 32768
-      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 32768
-      KAFKA_SOCKET_REQUEST_MAX_BYTES: 26214400
-      KAFKA_NUM_REPLICA_FETCHERS: 1
-      
-      # Memory optimization (increased for stability)
-      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
-      
-      # Cluster Configuration
-      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
-    ports:
-      - "${KAFKA_PORT:-9092}:${KAFKA_PORT:-9092}"
-    volumes:
-      - kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 60s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-          cpus: '0.5'
-        reservations:
-          memory: 384M
-          cpus: '0.25'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
+    extends:
+      file: docker-compose.base.yml
+      service: kafka
 
   # ============================================================================
   # SEARCH & ANALYTICS
@@ -260,83 +45,15 @@ services:
 
   # Elasticsearch - Full-text search (optimized for low resource usage)
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - xpack.ml.enabled=false
-      - xpack.watcher.enabled=false
-      - xpack.graph.enabled=false
-      - bootstrap.memory_lock=false
-      - cluster.routing.allocation.disk.threshold_enabled=false
-      - xpack.security.transport.ssl.enabled=false
-      - xpack.security.http.ssl.enabled=false
-      - path.repo=/usr/share/elasticsearch/backup
-      - ES_TMPDIR=/tmp
-      - ES_JAVA_OPTS=-Xms256m -Xmx256m -Djava.io.tmpdir=/tmp -XX:+UseG1GC -XX:MaxGCPauseMillis=50
-      - cluster.max_shards_per_node=1000
-      - indices.memory.index_buffer_size=10%
-      - indices.memory.min_index_buffer_size=48mb
-    ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
-      interval: 60s
-      timeout: 15s
-      retries: 5
-      start_period: 180s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.5'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
+    extends:
+      file: docker-compose.base.yml
+      service: elasticsearch
 
   # Kibana - Elasticsearch UI (optimized for low resource usage)
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.11.0
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kibana
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-      XPACK_SECURITY_ENABLED: false
-      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${KIBANA_ENCRYPTION_KEY:-a7a6311933d3503b89bc2dbc36572c01a6b9c9b0ba6d6b6b6b6b6b6b6b6b6b6b}
-      NODE_OPTIONS: "--max-old-space-size=512"
-      LOGGING_QUIET: true
-    ports:
-      - "${KIBANA_PORT:-5601}:5601"
-    depends_on:
-      - elasticsearch
-    deploy:
-      resources:
-        limits:
-          memory: 768M
-          cpus: '0.5'
-        reservations:
-          memory: 384M
-          cpus: '0.25'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - logging
+    extends:
+      file: docker-compose.base.yml
+      service: kibana
 
   # ============================================================================
   # API GATEWAY & COMMUNICATION LAYER
@@ -344,66 +61,15 @@ services:
 
   # gRPC Service Registry & Load Balancer (Consul - optimized for low resource usage)
   grpc-registry:
-    image: consul:1.15
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-grpc-registry
-    command: consul agent -dev -client=0.0.0.0 -ui -log-level=WARN
-    environment:
-      CONSUL_BIND_INTERFACE: eth0
-      CONSUL_DISABLE_PPROF: true
-      CONSUL_DISABLE_KEYRING_FILE: true
-    ports:
-      - "${CONSUL_PORT:-8500}:8500"
-      - "${CONSUL_DNS_PORT:-8600}:8600/udp"
-    volumes:
-      - consul_data:/consul/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8500/v1/status/leader"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-        reservations:
-          memory: 64M
-          cpus: '0.1'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - api-layer
+    extends:
+      file: docker-compose.base.yml
+      service: grpc-registry
 
-  # ============================================================================
-  # REVERSE PROXY (NGINX)
-  # ============================================================================
-  
   # NGINX Reverse Proxy - Main entry point for external traffic
   nginx-proxy:
-    image: nginx:alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-nginx-proxy
-    user: "root"
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
-    depends_on:
-      erp-frontend:
-        condition: service_started
-      api-gateway:
-        condition: service_started
-    # Health check removed to reduce resource usage
-    networks:
-      - erp-network
-    profiles:
-      - full-stack
-      - proxy
+    extends:
+      file: docker-compose.base.yml
+      service: nginx-proxy
 
   # ============================================================================
   # SIMPLE LOGGING
@@ -417,108 +83,27 @@ services:
 
   # Adminer - Lightweight PostgreSQL management (replaces pgAdmin for lower resource usage)
   adminer:
-    image: adminer:4.8.1
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-adminer
-    environment:
-      ADMINER_DEFAULT_SERVER: postgres
-      ADMINER_DESIGN: pepa-linha
-    ports:
-      - "${PGADMIN_PORT:-8081}:8080"
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-          cpus: '0.1'
-        reservations:
-          memory: 32M
-          cpus: '0.05'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - dev-tools
+    extends:
+      file: docker-compose.devtools.yml
+      service: adminer
 
   # Mongo Express - MongoDB management (optimized for low resource usage)
   mongo-express:
-    image: mongo-express:1.0.0-alpha
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongo-express
-    user: 1000:1000
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USERNAME:-root}
-      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
-      ME_CONFIG_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-root}:${MONGODB_ROOT_PASSWORD:-password}@mongodb:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: ""
-      ME_CONFIG_BASICAUTH_PASSWORD: ""
-      ME_CONFIG_BASICAUTH: "false"
-      NODE_OPTIONS: "--max-old-space-size=128"
-    ports:
-      - "${MONGO_EXPRESS_PORT:-8082}:8081"
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-        reservations:
-          memory: 64M
-          cpus: '0.1'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - dev-tools
+    extends:
+      file: docker-compose.devtools.yml
+      service: mongo-express
 
   # Redis Commander - Redis management (optimized for low resource usage)
   redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-redis-commander
-    environment:
-      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD:-redispassword}
-      NODE_OPTIONS: "--max-old-space-size=128"
-    ports:
-      - "${REDIS_COMMANDER_PORT:-8083}:8081"
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.25'
-        reservations:
-          memory: 64M
-          cpus: '0.1'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - dev-tools
+    extends:
+      file: docker-compose.devtools.yml
+      service: redis-commander
 
   # Kafka UI - Kafka management (KRaft mode compatible, optimized for low resource usage)
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kafka-ui
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-      DYNAMIC_CONFIG_ENABLED: 'true'
-      LOGGING_LEVEL_COM_PROVECTUS: WARN
-      JAVA_OPTS: "-Xmx256m -Xms128m"
-    ports:
-      - "${KAFKA_UI_PORT:-8084}:8080"
-    deploy:
-      resources:
-        limits:
-          memory: 384M
-          cpus: '0.5'
-        reservations:
-          memory: 192M
-          cpus: '0.25'
-    networks:
-      - erp-network
-    profiles:
-      - infrastructure
-      - full-stack
-      - dev-tools
+    extends:
+      file: docker-compose.devtools.yml
+      service: kafka-ui
 
   # ============================================================================
   # APPLICATION SERVICES (Full Stack Profile)
@@ -526,545 +111,40 @@ services:
 
   # Auth Service (Go) - Authentication and Authorization (optimized for microservice architecture)
   auth-service:
-    build:
-      context: ../erp-auth-service
-      dockerfile: Dockerfile.dev
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-auth-service
-    user: "1000:1000"
-    working_dir: /app
-    command: /go/bin/air -c .air.toml
-    environment:
-      # Database Configuration
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: erp_auth
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DB_SSL_MODE: disable
-      DB_MAX_OPEN_CONNS: 10
-      DB_MAX_IDLE_CONNS: 5
-      
-      # Redis Configuration
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
-      REDIS_DB: 0
-      REDIS_POOL_SIZE: 5
-      
-      # Kafka Configuration (minimal)
-      KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-      KAFKA_TOPIC: auth-events
-      KAFKA_RETRY_ATTEMPTS: 2
-      KAFKA_RETRY_BACKOFF_MS: 500
-      KAFKA_BATCH_SIZE: 50
-      KAFKA_BATCH_TIMEOUT_MS: 100
-      KAFKA_CONNECTION_POOL_SIZE: 3
-      KAFKA_LOCAL_QUEUE_SIZE: 1000
-      KAFKA_GROUP_ID: auth-service-group
-      
-      # JWT Configuration
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      JWT_ACCESS_EXPIRY: 3600
-      JWT_REFRESH_EXPIRY: 604800
-      
-      # Server Configuration
-      HTTP_PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
-      PORT: ${AUTH_SERVICE_HTTP_PORT:-8080}
-      GIN_MODE: debug
-      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://localhost:4000,http://erp-frontend:3000,http://api-gateway:8000,http://ai-copilot:8003
-      
-      # gRPC Configuration (minimal)
-      GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
-      GRPC_MAX_CONNECTION_IDLE: 60
-      GRPC_MAX_CONNECTION_AGE: 120
-      GRPC_MAX_CONCURRENT_STREAMS: 100
-      
-      # Memory optimization
-      GOGC: 100
-      GOMEMLIMIT: 256MiB
-      
-      # Environment
-      ENV: ${NODE_ENV:-development}
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
-    ports:
-      - "${AUTH_SERVICE_HTTP_PORT:-8080}:${AUTH_SERVICE_HTTP_PORT:-8080}"
-      - "${AUTH_SERVICE_GRPC_PORT:-50051}:${AUTH_SERVICE_GRPC_PORT:-50051}"
-    volumes:
-      - ../erp-auth-service:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      kafka:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${AUTH_SERVICE_HTTP_PORT:-8080}/health"]
-      interval: 300s
-      timeout: 10s
-      retries: 2
-      start_period: 60s
-    networks:
-      - erp-network
-    profiles:
-      - full-stack
+    extends:
+      file: docker-compose.services.yml
+      service: auth-service
 
   # Subscription Service (Go) - Subscription and Billing Management
   subscription-service:
-    build:
-      context: ../subscription-service
-      dockerfile: Dockerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-subscription-service
-    user: "1000:1000"
-    working_dir: /app
-    command: ./subscription-service
-    environment:
-      # Database Configuration
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: erp_subscription
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DB_SSL_MODE: disable
-      
-      # Redis Configuration
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
-      REDIS_DB: 0
-      
-      # Server Configuration
-      HTTP_PORT: ${SUBSCRIPTION_SERVICE_HTTP_PORT:-8081}
-      GRPC_PORT: ${SUBSCRIPTION_SERVICE_GRPC_PORT:-50051}
-      
-      # JWT Configuration
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      JWT_EXPIRATION: 3600
-      
-      # Environment
-      ENVIRONMENT: ${NODE_ENV:-development}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    ports:
-      - "${SUBSCRIPTION_SERVICE_HTTP_PORT:-8081}:${SUBSCRIPTION_SERVICE_HTTP_PORT:-8081}"
-      - "${SUBSCRIPTION_SERVICE_GRPC_PORT:-50051}:${SUBSCRIPTION_SERVICE_GRPC_PORT:-50051}"
-    volumes:
-      - ../subscription-service:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SUBSCRIPTION_SERVICE_HTTP_PORT:-8081}/health"]
-      interval: 300s
-      timeout: 10s
-      retries: 2
-      start_period: 60s
-    networks:
-      - erp-network
-    profiles:
-      - full-stack
+    extends:
+      file: docker-compose.services.yml
+      service: subscription-service
 
   # API Gateway - Main API Gateway (optimized for microservice architecture)
   api-gateway:
-    build:
-      context: ../erp-api-gateway
-      dockerfile: Dockerfile
-      target: development
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-api-gateway
-    user: "root"
-    working_dir: /app
-    environment:
-      # Air hot reload configuration
-      AIR_WORKDIR: /app
-      
-      # Server Configuration (matching config.yaml structure)
-      SERVER_HOST: 0.0.0.0
-      SERVER_PORT: ${API_GATEWAY_PORT:-8000}
-      PORT: ${API_GATEWAY_PORT:-8000}
-      SERVER_READ_TIMEOUT: 30s
-      SERVER_WRITE_TIMEOUT: 30s
-      SERVER_SHUTDOWN_TIMEOUT: 10s
-      
-      # Database Configuration (matching config.yaml structure)
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: erp_gateway
-      DATABASE_USER: ${POSTGRES_USER:-postgres}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DATABASE_SSL_MODE: disable
-      DATABASE_MAX_OPEN_CONNS: 10
-      DATABASE_MAX_IDLE_CONNS: 5
-      
-      # Redis Configuration (matching config.yaml structure)
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redispassword}
-      REDIS_DB: 1
-      REDIS_POOL_SIZE: 10
-      REDIS_MIN_IDLE_CONNS: 5
-      REDIS_DIAL_TIMEOUT: 5s
-      REDIS_READ_TIMEOUT: 3s
-      REDIS_WRITE_TIMEOUT: 3s
-      
-      # Kafka Configuration (matching config.yaml structure)
-      KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-      KAFKA_CLIENT_ID: go-api-gateway
-      KAFKA_RETRY_MAX: 3
-      KAFKA_RETRY_BACKOFF: 100ms
-      KAFKA_FLUSH_MESSAGES: 100
-      KAFKA_FLUSH_BYTES: 1048576
-      KAFKA_FLUSH_TIMEOUT: 1s
-      
-      # gRPC Services Configuration (matching config.yaml structure)
-      GRPC_AUTH_SERVICE_HOST: auth-service
-      GRPC_AUTH_SERVICE_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
-      GRPC_AUTH_SERVICE_TIMEOUT: 10s
-      GRPC_AUTH_SERVICE_MAX_RETRIES: 3
-      GRPC_AUTH_SERVICE_RETRY_BACKOFF: 100ms
-      
-      # JWT Configuration (matching config.yaml structure)
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      JWT_JWKS_URL: http://auth-service:${AUTH_SERVICE_HTTP_PORT:-8080}/api/v1/.well-known/jwks.json
-      JWT_CACHE_TTL: 1h
-      JWT_ALGORITHM: HS256
-      JWT_ISSUER: erp-auth-service
-      
-      # CORS Configuration (matching config.yaml structure)
-      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000
-      CORS_ALLOWED_METHODS: GET,POST,PUT,DELETE,OPTIONS,PATCH
-      CORS_ALLOWED_HEADERS: Authorization,Content-Type,X-Requested-With,Accept,Origin
-      CORS_ALLOW_CREDENTIALS: true
-      CORS_MAX_AGE: 86400
-      
-      # WebSocket Configuration (matching config.yaml structure)
-      WS_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://erp-frontend:3000
-      WEBSOCKET_ENDPOINT: /chat
-      WEBSOCKET_SERVER_HOST: ai-copilot
-      WEBSOCKET_SERVER_PORT: 8003
-      WS_ENABLE_COMPRESSION: true
-      WS_READ_BUFFER_SIZE: 1024
-      WS_WRITE_BUFFER_SIZE: 1024
-      
-      # Logging Configuration (matching config.yaml structure)
-      LOGGING_LEVEL: ${LOG_LEVEL:-info}
-      LOGGING_FORMAT: json
-      LOGGING_OUTPUT: stdout
-      LOGGING_BUFFER_SIZE: 1000
-      LOGGING_FLUSH_INTERVAL: 5s
-      LOGGING_ELASTICSEARCH_URLS: http://elasticsearch:9200
-      LOGGING_ELASTICSEARCH_INDEX_NAME: go-api-gateway-logs
-      
-      # Memory optimization
-      GOGC: 100
-      GOMEMLIMIT: 512MiB
-      
-      # Environment
-      ENV: ${NODE_ENV:-development}
-      GO_ENV: ${NODE_ENV:-development}
-    ports:
-      - "${API_GATEWAY_PORT:-8000}:${API_GATEWAY_PORT:-8000}"
-    volumes:
-      - ../erp-api-gateway:/app
-      - /app/tmp
-      - /app/bin
-      - /app/vendor
-      - /go/pkg/mod
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      auth-service:
-        condition: service_started
-      ai-copilot:
-        condition: service_healthy
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:${API_GATEWAY_PORT:-8000}/health"]
-    #   interval: 300s
-    #   timeout: 10s
-    #   retries: 2
-    #   start_period: 60s
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: "0.2"
-    #       memory: 256M
-    networks:
-      - erp-network
-    profiles:
-      - full-stack
+    extends:
+      file: docker-compose.services.yml
+      service: api-gateway
 
   # AI Copilot Service - AI-powered ERP assistance with Ollama integration
   ai-copilot:
-    build:
-      context: ../erp-ai-copilot
-      dockerfile: ${AI_COPILOT_DOCKERFILE:-Dockerfile}
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-ai-copilot
-    ports:
-      - "8003:8003"  # HTTP API
-      - "50055:50055"  # gRPC
-    environment:
-      # Service Configuration
-      - SERVICE_NAME=ai-copilot
-      - SERVICE_VERSION=1.0.0
-      - ENVIRONMENT=development
-      - LOG_LEVEL=info
-      - HOST=0.0.0.0
-      - PORT=8003
-      - RELOAD=${AI_COPILOT_RELOAD:-false}
-      
-      # Database Configuration
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=erp_ai_copilot
-      - DB_USER=${POSTGRES_USER:-postgres}
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - DB_SSL_MODE=disable
-      - DB_MAX_CONNECTIONS=20
-      - DB_MIN_CONNECTIONS=5
-      
-      # MongoDB Configuration
-      - MONGODB_URI=mongodb://${MONGODB_ROOT_USERNAME:-root}:${MONGODB_ROOT_PASSWORD:-password}@mongodb:27017/
-      - MONGODB_DATABASE=erp_ai_conversations
-      - MONGODB_MAX_POOL_SIZE=10
-      - MONGODB_MIN_POOL_SIZE=1
-      
-      # Redis Configuration
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispassword}
-      - REDIS_DB=0
-      - REDIS_POOL_SIZE=10
-      
-      # Qdrant Configuration
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_GRPC_PORT=6334
-      - QDRANT_API_KEY=
-      - QDRANT_TIMEOUT=30
-      
-      # Kafka Configuration
-      - KAFKA_BROKERS=kafka:29092
-      - KAFKA_TOPIC_PREFIX=ai-copilot
-      - KAFKA_CLIENT_ID=ai-copilot-service
-      - KAFKA_GROUP_ID=ai-copilot-group
-      - KAFKA_AUTO_OFFSET_RESET=earliest
-      
-      # AI Model Configuration
-      - OLLAMA_BASE_URL=http://172.17.0.1:11434
-      - DEFAULT_LLM_PROVIDER=gemini
-      - DEFAULT_MODEL=gemini2.0:flash
-      - GEMINI_API_KEY=AIzaSyDe79kNlJ_lGUXO5e-qka73mUpcvrynsBc
-      - AI_DEFAULT_MODEL=gemini2.0:flash
-      - AI_MAX_TOKENS=4000
-      - AI_TEMPERATURE=0.7
-
-      # Auth Service Configuration
-      - AUTH_SERVICE_GRPC_HOST=erp-suite-auth-service
-      - AUTH_SERVICE_GRPC_PORT=50051
-      
-      # API Configuration
-      - API_HOST=0.0.0.0
-      - API_PORT=8003
-      - GRPC_PORT=50055
-      
-      # CORS Configuration
-      - CORS_ORIGINS=http://localhost:3000,http://erp-frontend:3000,http://localhost:8003,http://localhost,http://localhost:8000
-      - SECURITY_CORS_ORIGINS=http://localhost:3000,http://erp-frontend:3000,http://localhost:8003,http://localhost
-      
-      # Security
-      - SECURITY_JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      - SECURITY_JWT_ALGORITHM=HS256
-      - SECURITY_JWT_EXPIRY_HOURS=24
-      
-      # Resource Limits
-      - MAX_CONCURRENT_REQUESTS=100
-      - REQUEST_TIMEOUT=300
-      - MEMORY_LIMIT_MB=2048
-      
-      # Agent Configuration
-      - AGENT_TIMEOUT_SECONDS=60
-      - AGENT_MAX_RETRIES=3
-      - AGENT_MEMORY_TTL_HOURS=24
-      - AGENT_MAX_CONCURRENT=10
-      
-      # WebSocket Configuration
-      - WS_MAX_CONNECTIONS=1000
-      - WS_HEARTBEAT_INTERVAL=30
-      - WS_CONNECTION_TIMEOUT=300
-      - WS_MAX_MESSAGE_SIZE=1048576
-      
-      # gRPC Configuration
-      - GRPC_MAX_WORKERS=10
-      - GRPC_MAX_CONCURRENT_RPCS=100
-      - GRPC_MAX_CONNECTION_IDLE=300
-      - GRPC_MAX_CONNECTION_AGE=600
-      - GRPC_MAX_MESSAGE_SIZE=52428800
-      
-      # RAG Configuration
-      - RAG_ENABLED=true
-      - RAG_COLLECTION_PREFIX=erp
-      - RAG_EMBEDDING_MODEL=all-MiniLM-L6-v2
-      - RAG_SIMILARITY_THRESHOLD=0.75
-      - RAG_MAX_RESULTS=10
-      - RAG_CHUNK_SIZE=1000
-      - RAG_CHUNK_OVERLAP=200
-      
-      # Monitoring
-      - METRICS_ENABLED=true
-      - HEALTH_CHECK_INTERVAL=30
-      - MONITORING_METRICS_ENABLED=true
-      - MONITORING_HEALTH_CHECK_INTERVAL=30
-      - MONITORING_PROMETHEUS_PORT=9090
-      - MONITORING_LOG_LEVEL=info
-      - MONITORING_LOG_FORMAT=json
-      
-    volumes:
-      # Mount source code for hot reloading in development
-      - ../erp-ai-copilot/app:/app/app:ro
-      - ../erp-ai-copilot/requirements.txt:/app/requirements.txt:ro
-      - ../erp-ai-copilot/config:/app/config:ro
-      - ./logs:/app/logs
-      - ./data:/app/data
-    depends_on:
-      postgres:
-        condition: service_started
-      redis:
-        condition: service_started
-      mongodb:
-        condition: service_started
-      qdrant:
-        condition: service_started
-      kafka:
-        condition: service_started
-    networks:
-      - erp-network
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-          cpus: '1.0'
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 300s
-      timeout: 100s
-      retries: 3
-      start_period: 60s
-    command: ["python", "cmd/server.py", "--mode", "full", "--provider", "gemini", "--host", "0.0.0.0", "--port", "8003"]
-    profiles:
-      - ai-services
-      - full-stack
+    extends:
+      file: docker-compose.services.yml
+      service: ai-copilot
 
   # Next.js Frontend - Main Web Application (optimized for low resource usage)
   erp-frontend:
-    build:
-      context: ../erp-frontend
-      dockerfile: Dockerfile.dev
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-frontend
-    user: "root"
-    env_file:
-      - .env.frontend
-    environment:
-      - NEXT_TELEMETRY_DISABLED=1
-      # Increased memory limit for Next.js development server
-      - NODE_OPTIONS=--max-old-space-size=2048 --max-semi-space-size=128
-      - WATCHPACK_POLLING=false
-      - DOCKER_ENV=true
-      - npm_config_target_platform=linux
-      - npm_config_target_libc=musl
-      - npm_config_cache=/app/.npm
-      # Memory optimization settings
-      - GENERATE_SOURCEMAP=false
-      - DISABLE_ESLINT_PLUGIN=true
-      - NEXT_WEBPACK_USEPOLLING=false
-      - NEXT_DISABLE_TURBOPACK=false
-      # Garbage collection optimization
-      - NODE_GC_INTERVAL=100
-    ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    volumes:
-      - ../erp-frontend:/app
-      - frontend_next:/app/.next
-      - frontend_node_modules:/app/node_modules
-    depends_on:
-      api-gateway:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "node", "/app/scripts/health-check.js"]
-      interval: 300s
-      timeout: 30s
-      retries: 3
-      start_period: 120s
-    # Docker resource limits to prevent memory issues
-    deploy:
-      resources:
-        limits:
-          memory: 3G
-          cpus: '2.0'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
-    networks:
-      - erp-network
-    profiles:
-      - full-stack
+    extends:
+      file: docker-compose.services.yml
+      service: erp-frontend
 
   # Log Service (optimized for low resource usage)
   log-service:
-    build:
-      context: ../erp-log-service
-      dockerfile: Dockerfile.dev
-    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-log-service
-    user: "1001:1001"
-    ports:
-      - "${LOG_SERVICE_HTTP_PORT:-8001}:8001"
-      - "${LOG_SERVICE_GRPC_PORT:-50052}:50052"
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${POSTGRES_DB:-erp_system}
-      DB_USER: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      DB_MAX_OPEN_CONNS: 5
-      DB_MAX_IDLE_CONNS: 2
-      KAFKA_BROKERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
-      AUTH_SERVICE_GRPC_HOST: auth-service
-      AUTH_SERVICE_GRPC_PORT: ${AUTH_SERVICE_GRPC_PORT:-50051}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      HTTP_PORT: 8001
-      GRPC_PORT: 50052
-      # Memory optimization
-      GOGC: 100
-      GOMEMLIMIT: 256MiB
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 300s
-      timeout: 10s
-      retries: 2
-      start_period: 90s
-    volumes:
-      - ../erp-log-service:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      api-gateway:
-        condition: service_started
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-    networks:
-      - erp-network
-    profiles:
-      - full-stack
+    extends:
+      file: docker-compose.services.yml
+      service: log-service
 
-# ============================================================================
-# VOLUMES
-# ============================================================================
 volumes:
   postgres_data:
   mongodb_data:
@@ -1078,9 +158,6 @@ volumes:
   frontend_node_modules:
   frontend_next:
 
-# ============================================================================
-# NETWORKS
-# ============================================================================
 networks:
   erp-network:
     driver: bridge

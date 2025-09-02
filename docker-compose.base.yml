@@ -1,0 +1,66 @@
+# Base compose with shared volumes and network
+services:
+  postgres:
+    extends:
+      file: docker-compose.datastores.yml
+      service: postgres
+  
+  mongodb:
+    extends:
+      file: docker-compose.datastores.yml
+      service: mongodb
+  
+  redis:
+    extends:
+      file: docker-compose.datastores.yml
+      service: redis
+  
+  qdrant:
+    extends:
+      file: docker-compose.datastores.yml
+      service: qdrant
+  
+  kafka:
+    extends:
+      file: docker-compose.messaging.yml
+      service: kafka
+  
+  elasticsearch:
+    extends:
+      file: docker-compose.search.yml
+      service: elasticsearch
+  
+  kibana:
+    extends:
+      file: docker-compose.search.yml
+      service: kibana
+  
+  grpc-registry:
+    extends:
+      file: docker-compose.api.yml
+      service: grpc-registry
+  
+  nginx-proxy:
+    extends:
+      file: docker-compose.proxy.yml
+      service: nginx-proxy
+
+volumes:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+  qdrant_data:
+  kafka_data:
+  elasticsearch_data:
+  elasticsearch_config:
+  pgadmin_data:
+  consul_data:
+  frontend_node_modules:
+  frontend_next:
+
+networks:
+  erp-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-172.20.0.0/16}

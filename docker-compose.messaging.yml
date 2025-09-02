@@ -1,0 +1,70 @@
+# Messaging: Kafka (broker only)
+services:
+  # Kafka - Event streaming (KRaft mode - optimized for low resource usage)
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kafka
+    user: "1000:1000"
+    environment:
+      # KRaft Configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://0.0.0.0:${KAFKA_PORT:-9092},CONTROLLER://0.0.0.0:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://kafka:${KAFKA_PORT:-9092}
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      
+      # Topic Configuration (minimal for low resource usage)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      
+      # Log Configuration (minimal retention for low resource usage)
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_LOG_RETENTION_HOURS: 2
+      KAFKA_LOG_SEGMENT_BYTES: 67108864
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
+      KAFKA_LOG_CLEANUP_POLICY: delete
+      KAFKA_LOG_RETENTION_BYTES: 268435456
+      
+      # Performance Configuration (minimal threads for low resource usage)
+      KAFKA_NUM_NETWORK_THREADS: 1
+      KAFKA_NUM_IO_THREADS: 2
+      KAFKA_SOCKET_SEND_BUFFER_BYTES: 32768
+      KAFKA_SOCKET_RECEIVE_BUFFER_BYTES: 32768
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 26214400
+      KAFKA_NUM_REPLICA_FETCHERS: 1
+      
+      # Memory optimization (increased for stability)
+      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m"
+      
+      # Cluster Configuration
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    ports:
+      - "${KAFKA_PORT:-9092}:${KAFKA_PORT:-9092}"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.5'
+        reservations:
+          memory: 384M
+          cpus: '0.25'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack

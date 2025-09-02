@@ -1,0 +1,81 @@
+# Search & Analytics: Elasticsearch, Kibana
+services:
+  # Elasticsearch - Full-text search (optimized for low resource usage)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.ml.enabled=false
+      - xpack.watcher.enabled=false
+      - xpack.graph.enabled=false
+      - bootstrap.memory_lock=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - path.repo=/usr/share/elasticsearch/backup
+      - ES_TMPDIR=/tmp
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m -Djava.io.tmpdir=/tmp -XX:+UseG1GC -XX:MaxGCPauseMillis=50
+      - cluster.max_shards_per_node=1000
+      - indices.memory.index_buffer_size=10%
+      - indices.memory.min_index_buffer_size=48mb
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 180s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+
+  # Kibana - Elasticsearch UI (optimized for low resource usage)
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      XPACK_SECURITY_ENABLED: false
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${KIBANA_ENCRYPTION_KEY:-a7a6311933d3503b89bc2dbc36572c01a6b9c9b0ba6d6b6b6b6b6b6b6b6b6b6b}
+      NODE_OPTIONS: "--max-old-space-size=512"
+      LOGGING_QUIET: true
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      - elasticsearch
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.5'
+        reservations:
+          memory: 384M
+          cpus: '0.25'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - logging

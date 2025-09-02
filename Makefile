@@ -9,6 +9,9 @@ HOST_IP ?= 0.0.0.0  # Expose to all interfaces, can be changed to specific IP
 ENVIRONMENT ?= development
 BUILD_TYPE ?= dev
 
+# Include modular Makefile sections
+include core-commands.mk
+
 # Default target
 help:
 	@echo "ERP Suite Infrastructure - Complete Management Commands"
@@ -95,7 +98,7 @@ detect-network-ip:
 stop:
 	@echo "🛑 Stopping ERP Suite infrastructure..."
 	@echo "📋 Stopping all Docker Compose services..."
-	@docker compose down --remove-orphans --volumes --timeout 30 2>/dev/null || true
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml down --remove-orphans --volumes --timeout 30 2>/dev/null || true
 	@echo "🔍 Killing any remaining ERP Suite containers..."
 	@docker ps -a --filter "name=erp-suite" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
 	@echo "🧹 Cleaning up orphaned containers..."
@@ -179,13 +182,13 @@ force-stop:
 # Pause all services
 pause:
 	@echo "⏸️  Pausing all ERP Suite services..."
-	@docker compose pause
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml pause
 	@echo "✅ All services paused"
 
 # Resume all paused services
 resume:
 	@echo "▶️  Resuming all ERP Suite services..."
-	@docker compose unpause
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml unpause
 	@echo "✅ All services resumed"
 
 # Reload specific service
@@ -195,7 +198,7 @@ reload:
 		exit 1; \
 	fi
 	@echo "🔄 Reloading $(SERVICE)..."
-	@docker compose restart $(SERVICE)
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml restart $(SERVICE)
 	@echo "✅ $(SERVICE) reloaded"
 
 # Build specific service
@@ -205,7 +208,7 @@ build-service:
 		exit 1; \
 	fi
 	@echo "🔨 Building $(SERVICE)..."
-	@docker compose build $(SERVICE)
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml build $(SERVICE)
 	@echo "✅ $(SERVICE) built"
 
 # Rebuild and restart service
@@ -215,16 +218,16 @@ rebuild-service:
 		exit 1; \
 	fi
 	@echo "🔨 Rebuilding $(SERVICE)..."
-	@docker compose stop $(SERVICE)
-	@docker compose rm -f $(SERVICE)
-	@docker compose build --no-cache $(SERVICE)
-	@docker compose up -d $(SERVICE)
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml stop $(SERVICE)
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml rm -f $(SERVICE)
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml build --no-cache $(SERVICE)
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d $(SERVICE)
 	@echo "✅ $(SERVICE) rebuilt and restarted"
 
 # Full stop with cleanup
 full-stop:
 	@echo "🛑 Complete shutdown..."
-	@docker compose down -v --remove-orphans
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml down -v --remove-orphans
 	@docker system prune -f --volumes
 	@echo "✅ Complete shutdown finished"
 	@echo "💡 Run 'make start' to restart"
@@ -335,7 +338,7 @@ wait-for-service:
 	fi; \
 	initial_timeout=$$timeout; \
 	while [ $$timeout -gt 0 ]; do \
-		if docker compose ps $(SERVICE) | grep -q "healthy\|Up"; then \
+		if docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml ps $(SERVICE) | grep -q "healthy\|Up"; then \
 			echo "✅ $(SERVICE) is ready (took $$((initial_timeout - timeout)) seconds)"; \
 			break; \
 		fi; \
@@ -349,7 +352,7 @@ wait-for-service:
 	if [ $$timeout -le 0 ]; then \
 		echo "❌ $(SERVICE) failed to start within timeout"; \
 		echo "📋 Last 30 lines of $(SERVICE) logs:"; \
-		docker compose logs $(SERVICE) | tail -30; \
+		docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml logs $(SERVICE) | tail -30; \
 		echo ""; \
 		echo "💡 Troubleshooting tips:"; \
 		echo "  • Check if Docker has enough memory allocated (4GB+ recommended)"; \
@@ -358,15 +361,19 @@ wait-for-service:
 		exit 1; \
 	fi
 
-# Initialize databases
+# Initialize PostgreSQL and MongoDB
 init-dbs:
 	@echo "🔧 Initializing databases..."
 	@databases="erp_auth erp_core erp_crm erp_hrm erp_finance erp_inventory erp_projects"; \
 	for db in $$databases; do \
 		echo "Creating database: $$db"; \
-		docker compose exec -T postgres psql -U postgres -c "CREATE DATABASE $$db;" > /dev/null 2>&1 || echo "Database $$db already exists"; \
+		docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml exec -T postgres psql -U postgres -c "CREATE DATABASE $$db;" > /dev/null 2>&1 || echo "Database $$db already exists"; \
 	done
-	@echo "✅ Databases initialized!"
+	@echo "✅ PostgreSQL databases initialized!"
+
+	@echo "🔧 Initializing MongoDB..."
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml exec -T mongodb mongosh --quiet --eval "db.createCollection('init_collection')" > /dev/null 2>&1 || echo "MongoDB already initialized"
+	@echo "✅ MongoDB initialized!"
 
 # ============================================================================
 # CORE STARTUP COMMANDS
@@ -397,56 +404,62 @@ run:
 	@echo "  Phase 9: Core Application Services"
 	@echo ""
 	@echo "🔄 Phase 1: Starting core databases..."
-	@docker compose up -d postgres redis
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d postgres redis
 	@$(MAKE) wait-for-service SERVICE=postgres
 	@$(MAKE) wait-for-service SERVICE=redis
 	@$(MAKE) init-dbs
 	@echo "✅ Phase 1 complete: Core databases ready"
 	@sleep 2
 	@echo "🔄 Phase 2: Starting document and vector stores..."
-	@docker compose up -d mongodb qdrant
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d mongodb qdrant
+	@$(MAKE) wait-for-service SERVICE=mongodb
+	@$(MAKE) wait-for-service SERVICE=qdrant
 	@echo "✅ Phase 2 complete: Document and vector stores ready"
 	@sleep 2
 	@echo "🔄 Phase 3: Starting message broker..."
-	@docker compose up -d kafka
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d kafka
+	@$(MAKE) wait-for-service SERVICE=kafka
 	@echo "✅ Phase 3 complete: Message broker ready"
 	@sleep 2
 	@echo "🔄 Phase 4: Starting search engine..."
-	@docker compose up -d elasticsearch
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d elasticsearch
+	@$(MAKE) wait-for-service SERVICE=elasticsearch
 	@echo "✅ Phase 4 complete: Search engine ready"
 	@sleep 2
 	@echo "🔄 Phase 5: Starting API layer..."
-	@docker compose up -d grpc-registry
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d grpc-registry
+	@$(MAKE) wait-for-service SERVICE=grpc-registry
 	@echo "✅ Phase 5 complete: API layer ready"
 	@sleep 2
-	@echo "✅ Phase 6 complete: Startup system"
+	@echo "✅ Phase 6 complete: server ready"
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
-	@docker compose up -d kibana
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d kibana
 	@cd ./ && ./scripts/setup-logging.sh
 	@echo "✅ Phase 7 complete: Logging services ready"
 	@sleep 2
 	@echo "🔄 Phase 8: Starting development tools..."
-	@docker compose --profile dev-tools up -d
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile dev-tools up -d
 	@echo "✅ Phase 8 complete: Development tools ready"
 	@echo "🔄 Phase 9: Starting core application services..."
 
 	@echo "🔄 Phase 9a: Starting Auth Service..."
 	@cd ../erp-auth-service && go mod tidy && go build && cd ..
-	@docker compose --profile full-stack up -d auth-service
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d auth-service
+	@$(MAKE) wait-for-service SERVICE=auth-service
 	@echo "🔄 Phase 9b: Starting API Gateway..."
-	@docker compose --profile full-stack up -d api-gateway
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d api-gateway
 	@$(MAKE) wait-for-service SERVICE=api-gateway
 	@echo "🔄 Phase 9c: Starting Log Service..."
-	@docker compose --profile full-stack up -d log-service
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d log-service
 	@echo "🔄 Phase 10: Starting Frontend..."
-	@docker compose --profile full-stack up -d erp-frontend
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d erp-frontend
 	@echo "✅ Phase 9-10 complete: All core application services up and running..."
 	@echo ""
 	@echo "🔄 Phase 11: Starting Reverse Proxy..."
 	@echo "🌐 Configuring nginx proxy server"
-	@docker compose up -d nginx-proxy
-	@docker compose --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d nginx-proxy
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
 	@$(MAKE) wait-for-service SERVICE=nginx-proxy
 	@echo "✅ Phase 11 complete: proxy server is ready."
 	@echo "✅ All services with proxy started!"
@@ -460,7 +473,7 @@ start-with-proxy: prepare-environment check-ports setup-proxy start-proxy-servic
 # Start all services (standard)
 start-services:
 	@echo "🚀 Starting all ERP Suite services..."
-	@docker compose --profile infrastructure --profile api-layer --profile logging --profile dev-tools --profile full-stack up -d
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile infrastructure --profile api-layer --profile logging --profile dev-tools --profile full-stack up -d
 	@$(MAKE) init-dbs
 	@echo "✅ All services started!"
 
@@ -482,40 +495,40 @@ start-proxy-services:
 	@echo "  Phase 10: Reverse Proxy"
 	@echo ""
 	@echo "🔄 Phase 1: Starting core databases..."
-	@docker compose up -d postgres redis
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d postgres redis
 	@$(MAKE) wait-for-service SERVICE=postgres
 	@$(MAKE) wait-for-service SERVICE=redis
 	@echo "✅ Phase 1 complete: Core databases ready"
 	@sleep 2
 	@echo "🔄 Phase 2: Starting document and vector stores..."
-	@docker compose up -d mongodb qdrant
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d mongodb qdrant
 	@$(MAKE) wait-for-service SERVICE=mongodb
 	@$(MAKE) wait-for-service SERVICE=qdrant
 	@echo "✅ Phase 2 complete: Document and vector stores ready"
 	@sleep 2
 	@echo "🔄 Phase 3: Starting message broker..."
-	@docker compose up -d kafka
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d kafka
 	@$(MAKE) wait-for-service SERVICE=kafka
 	@echo "✅ Phase 3 complete: Message broker ready"
 	@sleep 2
 	@echo "🔄 Phase 4: Starting search engine..."
-	@docker compose up -d elasticsearch
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d elasticsearch
 	@$(MAKE) wait-for-service SERVICE=elasticsearch
 	@echo "✅ Phase 4 complete: Search engine ready"
 	@sleep 2
 	@echo "🔄 Phase 5: Starting API layer..."
-	@docker compose up -d grpc-registry
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d grpc-registry
 	@$(MAKE) wait-for-service SERVICE=grpc-registry
 	@echo "✅ Phase 5 complete: API layer ready"
 	@sleep 2
 	@echo "✅ Phase 6 complete: server ready"
 	@sleep 2
 	@echo "🔄 Phase 7: Starting logging services..."
-	@docker compose up -d kibana
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d kibana
 	@echo "✅ Phase 7 complete: Logging services ready"
 	@sleep 2
 	@echo "🔄 Phase 8: Starting development tools..."
-	@docker compose --profile dev-tools up -d
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile dev-tools up -d
 
 	@echo "✅ Phase 8 complete: Development tools ready"
 	@echo "🔄 Phase 9: Starting core application services..."
@@ -523,23 +536,23 @@ start-proxy-services:
 	@$(MAKE) init-dbs
 	@echo "🔄 Phase 9a: Starting Auth Service..."
 	@cd ../erp-auth-service && go mod tidy && go build && cd ..
-	@docker compose --profile full-stack up -d auth-service
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d auth-service
 	@$(MAKE) wait-for-service SERVICE=auth-service
 	@echo "🔄 Phase 9b: Starting API Gateway..."
-	@docker compose --profile full-stack up -d api-gateway
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d api-gateway
 	@$(MAKE) wait-for-service SERVICE=api-gateway
 	@echo "🔄 Phase 9c: Starting Log Service..."
-	@docker compose --profile full-stack up -d log-service
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d log-service
 	@$(MAKE) wait-for-service SERVICE=log-service
 	@echo "🔄 Phase 10: Starting Frontend..."
-	@docker compose --profile full-stack up -d erp-frontend
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile full-stack up -d erp-frontend
 	@$(MAKE) wait-for-service SERVICE=erp-frontend
 	@echo "✅ Phase 9-10 complete: All core application services up and running..."
 	@echo ""
 	@echo "🔄 Phase 11: Starting Reverse Proxy..."
 	@echo "🌐 Configuring nginx proxy server"
-	@docker compose up -d nginx-proxy
-	@docker compose --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml up -d nginx-proxy
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml --profile proxy --profile full-stack --profile api-layer up -d nginx-proxy
 	@$(MAKE) wait-for-service SERVICE=nginx-proxy
 	@echo "✅ Phase 11 complete: Reverse proxy is ready."
 	@echo "✅ All services with proxy started!"
@@ -885,7 +898,7 @@ restart-proxy:
 # Build all services
 build-all:
 	@echo "🔨 Building all ERP Suite services..."
-	@docker compose build --no-cache
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml build --no-cache
 	@echo "✅ All services built successfully"
 
 # ============================================================================
@@ -917,26 +930,26 @@ install-deps:
 logs:
 	@if [ -n "$(APP)" ]; then \
 		echo "📋 Showing logs for $(APP)..."; \
-		docker compose logs -f $(APP); \
+		docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml logs -f $(APP); \
 	else \
 		echo "📋 Showing logs from all services..."; \
-		docker compose logs -f; \
+		docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml logs -f; \
 	fi
 
 # Show running services status
 services:
 	@echo "📊 Service Status:"
-	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker compose ps
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml ps
 	@echo ""
 	@echo "🔍 Quick Health Check:"
 	@printf "PostgreSQL: "
-	@docker compose exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "Redis: "
-	@docker compose exec -T redis redis-cli --no-auth-warning -a redispassword ping > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml exec -T redis redis-cli --no-auth-warning -a redispassword ping > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "MongoDB: "
-	@docker compose exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "Kafka: "
-	@docker compose exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml exec -T kafka kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "Elasticsearch: "
 	@curl -s http://localhost:9200/_cluster/health > /dev/null 2>&1 && echo "✅ Ready" || echo "❌ Not Ready"
 	@printf "NGINX Proxy: "
@@ -1063,8 +1076,6 @@ print-info:
 	echo "  Qdrant:              http://$$network_ip:6333"; \
 	echo "  Kafka:               $$network_ip:9092"; \
 	echo "  Elasticsearch:       http://$$network_ip:9200 (elastic/password)"; \
-	
-
 	echo ""; \
 	echo "📋 Development Tools:"; \
 	echo "  pgAdmin:             http://$$network_ip:8081 (admin@erp.com/admin)"; \
@@ -1177,7 +1188,7 @@ macos-performance:
 # Clean up and optimize for macOS
 macos-clean:
 	@echo "🍎 Cleaning up Docker for macOS optimization..."
-	@docker compose down -v --remove-orphans
+	@docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.prod.yml down -v --remove-orphans
 	@docker system prune -f --volumes
 	@docker builder prune -f
 	@echo "✅ macOS Docker cleanup complete!"
@@ -1185,4 +1196,3 @@ macos-clean:
 	@echo "💡 Next steps:"
 	@echo "  • Restart Docker Desktop"
 	@echo "  • Run 'make start-dev' for optimized startup"
-

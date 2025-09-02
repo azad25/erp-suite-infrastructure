@@ -1,0 +1,31 @@
+# Application services aggregator: extend per-service Compose files
+services:
+  auth-service:
+    extends:
+      file: ../erp-auth-service/docker-compose.yml
+      service: auth-service
+
+  subscription-service:
+    extends:
+      file: ../erp-subscription-service/docker-compose.yml
+      service: subscription-service
+
+  api-gateway:
+    extends:
+      file: ../erp-api-gateway/docker-compose.yml
+      service: api-gateway
+
+  ai-copilot:
+    extends:
+      file: ../erp-ai-copilot/docker-compose.yml
+      service: ai-copilot
+
+  erp-frontend:
+    extends:
+      file: ../erp-frontend/docker-compose.yml
+      service: erp-frontend
+
+  log-service:
+    extends:
+      file: ../erp-log-service/docker-compose.yml
+      service: log-service

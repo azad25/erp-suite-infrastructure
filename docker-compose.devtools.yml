@@ -1,0 +1,106 @@
+# Development tools: Adminer, Mongo Express, Redis Commander, Kafka UI
+services:
+  # Adminer - Lightweight PostgreSQL management (replaces pgAdmin for lower resource usage)
+  adminer:
+    image: adminer:4.8.1
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    ports:
+      - "${PGADMIN_PORT:-8081}:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: '0.1'
+        reservations:
+          memory: 32M
+          cpus: '0.05'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - dev-tools
+
+  # Mongo Express - MongoDB management (optimized for low resource usage)
+  mongo-express:
+    image: mongo-express:1.0.0-alpha
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongo-express
+    user: 1000:1000
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USERNAME:-root}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-root}:${MONGODB_ROOT_PASSWORD:-password}@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: ""
+      ME_CONFIG_BASICAUTH_PASSWORD: ""
+      ME_CONFIG_BASICAUTH: "false"
+      NODE_OPTIONS: "--max-old-space-size=128"
+    ports:
+      - "${MONGO_EXPRESS_PORT:-8082}:8081"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - dev-tools
+
+  # Redis Commander - Redis management (optimized for low resource usage)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-redis-commander
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD:-redispassword}
+      NODE_OPTIONS: "--max-old-space-size=128"
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8083}:8081"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - dev-tools
+
+  # Kafka UI - Kafka management (KRaft mode compatible, optimized for low resource usage)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      LOGGING_LEVEL_COM_PROVECTUS: WARN
+      JAVA_OPTS: "-Xmx256m -Xms128m"
+    ports:
+      - "${KAFKA_UI_PORT:-8084}:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.5'
+        reservations:
+          memory: 192M
+          cpus: '0.25'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - dev-tools

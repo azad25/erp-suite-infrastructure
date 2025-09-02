@@ -1,0 +1,179 @@
+# Datastores: PostgreSQL, MongoDB, Redis, Qdrant
+services:
+  # PostgreSQL - Primary relational database (Optimized for low resource usage)
+  postgres:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-erp_system}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Multiple database creation (handled by PostgreSQL init)
+      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_MULTIPLE_DATABASES:-erp_auth,erp_crm,erp_hrm,erp_finance,erp_inventory,erp_projects,erp_gateway,erp_analytics,erp_ai_copilot}
+      # Memory optimization
+      POSTGRES_SHARED_BUFFERS: 64MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 128MB
+      POSTGRES_WORK_MEM: 2MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 32MB
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c effective_cache_size=128MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=25
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=100
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=4MB
+      -c default_statistics_target=50
+      -c log_statement=none
+      -c log_duration=off
+      -c log_lock_waits=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+
+  # MongoDB - Analytics, logs, AI conversations (Optimized for low resource usage)
+  mongodb:
+    image: mongo:6.0-jammy
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-erp_analytics}
+      # Additional databases will be created by init script
+      MONGODB_DATABASES: "erp_analytics,erp_logs,erp_ai_conversations,erp_audit_trail,erp_notifications,erp_sessions,erp_cache"
+    command: >
+      bash -c "
+        chmod 777 /tmp &&
+        exec docker-entrypoint.sh mongod --auth --bind_ip_all 
+        --wiredTigerCacheSizeGB 0.1 
+        --wiredTigerCollectionBlockCompressor snappy
+        --wiredTigerIndexPrefixCompression true
+        --quiet
+        --logpath /dev/null
+        --nojournal
+      "
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongodb.js:/docker-entrypoint-initdb.d/init-mongodb.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+
+  # Redis - Cache, sessions, queues (Optimized for low resource usage)
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-redispassword}
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --tcp-keepalive 60
+      --timeout 300
+      --databases 8
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redispassword}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+
+  # Qdrant - Vector database for AI/RAG (Optimized for low resource usage)
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-qdrant
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__MAX_REQUEST_SIZE_MB: 16
+      QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS: 2
+      QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB: 100000
+      QDRANT__STORAGE__OPTIMIZERS__INDEXING_THRESHOLD_KB: 10000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    networks:
+      - erp-network
+    profiles:
+      - infrastructure
+      - full-stack
+      - ai-services
