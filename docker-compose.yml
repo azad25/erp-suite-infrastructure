@@ -1,29 +1,27 @@
-version: '3.8'
-
 services:
   # ============================================================================
   # DATABASES
   # ============================================================================
   
-  # PostgreSQL - Primary relational database (Optimized for low resource usage)
+  # PostgreSQL - Primary relational database
   postgres:
     extends:
       file: docker-compose.base.yml
       service: postgres
 
-  # MongoDB - Analytics, logs, AI conversations (Optimized for low resource usage)
+  # MongoDB - Analytics, logs, AI conversations 
   mongodb:
     extends:
       file: docker-compose.base.yml
       service: mongodb
 
-  # Redis - Cache, sessions, queues (Optimized for low resource usage)
+  # Redis - Cache, sessions, queues 
   redis:
     extends:
       file: docker-compose.base.yml
       service: redis
 
-  # Qdrant - Vector database for AI/RAG (Optimized for low resource usage)
+  # Qdrant - Vector database for AI/RAG
   qdrant:
     extends:
       file: docker-compose.base.yml
@@ -33,7 +31,7 @@ services:
   # MESSAGE BROKERS
   # ============================================================================
 
-  # Kafka - Event streaming (KRaft mode - optimized for low resource usage)
+  # Kafka - Event streaming
   kafka:
     extends:
       file: docker-compose.base.yml
@@ -43,13 +41,13 @@ services:
   # SEARCH & ANALYTICS
   # ============================================================================
 
-  # Elasticsearch - Full-text search (optimized for low resource usage)
+  # Elasticsearch - Full-text search
   elasticsearch:
     extends:
       file: docker-compose.base.yml
       service: elasticsearch
 
-  # Kibana - Elasticsearch UI (optimized for low resource usage)
+  # Kibana - Elasticsearch UI
   kibana:
     extends:
       file: docker-compose.base.yml
@@ -59,7 +57,7 @@ services:
   # API GATEWAY & COMMUNICATION LAYER
   # ============================================================================
 
-  # gRPC Service Registry & Load Balancer (Consul - optimized for low resource usage)
+  # gRPC Service Registry & Load Balancer
   grpc-registry:
     extends:
       file: docker-compose.base.yml
@@ -81,25 +79,25 @@ services:
   # DEVELOPMENT TOOLS
   # ============================================================================
 
-  # Adminer - Lightweight PostgreSQL management (replaces pgAdmin for lower resource usage)
+  # Adminer - Lightweight PostgreSQL management
   adminer:
     extends:
       file: docker-compose.devtools.yml
       service: adminer
 
-  # Mongo Express - MongoDB management (optimized for low resource usage)
+  # Mongo Express - MongoDB management
   mongo-express:
     extends:
       file: docker-compose.devtools.yml
       service: mongo-express
 
-  # Redis Commander - Redis management (optimized for low resource usage)
+  # Redis Commander - Redis management
   redis-commander:
     extends:
       file: docker-compose.devtools.yml
       service: redis-commander
 
-  # Kafka UI - Kafka management (KRaft mode compatible, optimized for low resource usage)
+  # Kafka UI - Kafka management
   kafka-ui:
     extends:
       file: docker-compose.devtools.yml
@@ -109,7 +107,7 @@ services:
   # APPLICATION SERVICES (Full Stack Profile)
   # ============================================================================
 
-  # Auth Service (Go) - Authentication and Authorization (optimized for microservice architecture)
+  # Auth Service (Go) - Authentication and Authorization
   auth-service:
     extends:
       file: docker-compose.services.yml
@@ -121,7 +119,7 @@ services:
       file: docker-compose.services.yml
       service: subscription-service
 
-  # API Gateway - Main API Gateway (optimized for microservice architecture)
+  # API Gateway - Main API Gateway
   api-gateway:
     extends:
       file: docker-compose.services.yml
@@ -133,13 +131,13 @@ services:
       file: docker-compose.services.yml
       service: ai-copilot
 
-  # Next.js Frontend - Main Web Application (optimized for low resource usage)
+  # Next.js Frontend - Main Web Application
   erp-frontend:
     extends:
       file: docker-compose.services.yml
       service: erp-frontend
 
-  # Log Service (optimized for low resource usage)
+  # Log Service
   log-service:
     extends:
       file: docker-compose.services.yml
