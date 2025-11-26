@@ -12,7 +12,7 @@ stop:
 	@docker network prune -f 2>/dev/null || true
 	@echo "🔍 Checking for processes still using ERP ports..."
 	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	ports="5432 27017 6378 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
 	killed_processes=0; \
 	for port in $$ports; do \
 		if [ "$$OS" = "Darwin" ]; then \
@@ -37,7 +37,7 @@ stop:
 	fi
 	@echo "🔍 Final port check..."
 	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	ports="5432 27017 6378 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
 	still_in_use=0; \
 	for port in $$ports; do \
 		port_in_use=false; \

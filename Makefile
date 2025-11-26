@@ -107,7 +107,7 @@ stop:
 	@docker network prune -f 2>/dev/null || true
 	@echo "🔍 Checking for processes still using ERP ports..."
 	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	ports="5432 27017 6378 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
 	killed_processes=0; \
 	for port in $$ports; do \
 		if [ "$$OS" = "Darwin" ]; then \
@@ -132,7 +132,7 @@ stop:
 	fi
 	@echo "🔍 Final port check..."
 	@OS=$$(uname); \
-	ports="5432 27017 6379 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
+	ports="5432 27017 6378 6333 9092 9200 5601 4000 8500 3001 8081 8082 8083 8084"; \
 	still_in_use=0; \
 	for port in $$ports; do \
 		port_in_use=false; \
@@ -277,7 +277,7 @@ check-ports:
 	@echo ""
 	@echo "📋 Required Ports:"
 	@OS=$$($(MAKE) -s detect-os); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 8500:Consul 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
+	ports="5432:PostgreSQL 27017:MongoDB 6378:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 8500:Consul 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	conflicts=0; \
 	for port_info in $$ports; do \
 		port=$$(echo $$port_info | cut -d: -f1); \
@@ -986,7 +986,7 @@ status:
 	@echo ""
 	@echo "🌐 Port Status:"
 	@OS=$(uname); \
-	ports="5432:PostgreSQL 27017:MongoDB 6379:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 8500:Consul 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
+	ports="5432:PostgreSQL 27017:MongoDB 6378:Redis 6333:Qdrant 9092:Kafka 9200:Elasticsearch 5601:Kibana 8500:Consul 8081:pgAdmin 8082:MongoExpress 8083:RedisCommander 8084:KafkaUI 8080:AuthService 8000:APIGateway 8001:LogService 3000:Frontend"; \
 	for port_info in $ports; do \
 		port=$(echo $port_info | cut -d: -f1); \
 		service=$(echo $port_info | cut -d: -f2); \
@@ -1042,7 +1042,7 @@ print-dev:
 	echo "📋 Infrastructure Services:"; \
 	echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"; \
 	echo "  MongoDB:             localhost:27017 (root/password)"; \
-	echo "  Redis:               localhost:6379 (password: redispassword)"; \
+	echo "  Redis:               localhost:6378 (password: redispassword)"; \
 	echo "  Qdrant:              http://localhost:6333"; \
 	echo "  Kafka:               localhost:9092"; \
 	echo "  Elasticsearch:       http://localhost:9200 (elastic/password)"; \
@@ -1072,7 +1072,7 @@ print-info:
 	echo "📋 Infrastructure Services:"; \
 	echo "  PostgreSQL:          $$network_ip:5432 (postgres/postgres)"; \
 	echo "  MongoDB:             $$network_ip:27017 (root/password)"; \
-	echo "  Redis:               $$network_ip:6379 (password: redispassword)"; \
+	echo "  Redis:               $$network_ip:6378 (password: redispassword)"; \
 	echo "  Qdrant:              http://$$network_ip:6333"; \
 	echo "  Kafka:               $$network_ip:9092"; \
 	echo "  Elasticsearch:       http://$$network_ip:9200 (elastic/password)"; \

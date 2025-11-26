@@ -29,7 +29,7 @@ spec:
         - name: NODE_ENV
           value: "production"
         - name: REDIS_URL
-          value: "redis://:redispassword@redis:6379"
+          value: "redis://:redispassword@redis:6378"
         - name: POSTGRES_URL
           value: "postgresql://postgres:postgres@postgres:5432/erp_system"
         - name: GRPC_AUTH_SERVICE

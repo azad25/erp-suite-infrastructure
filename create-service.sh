@@ -368,7 +368,7 @@ create_env_file() {
 # ${SERVICE_NAME} Service Configuration
 PORT=${SERVICE_PORT}
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/${DATABASE_NAME}
-REDIS_URL=redis://:redispassword@localhost:6379/0
+REDIS_URL=redis://:redispassword@localhost:6378/0
 EOF
     print_success "Environment file created"
 }
@@ -441,7 +441,7 @@ update_infrastructure() {
     environment:
       PORT: ${SERVICE_PORT}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/${DATABASE_NAME}
-      REDIS_URL: redis://:redispassword@redis:6379/0
+      REDIS_URL: redis://:redispassword@redis:6378/0
     ports:
       - "${SERVICE_PORT}:${SERVICE_PORT}"
     depends_on:

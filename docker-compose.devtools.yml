@@ -59,7 +59,7 @@ services:
     image: rediscommander/redis-commander:latest
     container_name: ${COMPOSE_PROJECT_NAME:-erp-suite}-redis-commander
     environment:
-      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD:-redispassword}
+      REDIS_HOSTS: local:redis:6378:0:${REDIS_PASSWORD:-redispassword}
       NODE_OPTIONS: "--max-old-space-size=128"
     ports:
       - "${REDIS_COMMANDER_PORT:-8083}:8081"

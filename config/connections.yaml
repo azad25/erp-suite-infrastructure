@@ -35,14 +35,14 @@ databases:
     
   redis:
     host: localhost
-    port: 6379
+    port: 6378
     password: redispassword
     databases:
       cache: 0
       sessions: 1
       queues: 2
       websocket: 3
-    connection_string: "redis://:redispassword@localhost:6379/{database}"
+    connection_string: "redis://:redispassword@localhost:6378/{database}"
     
   qdrant:
     host: localhost
@@ -171,7 +171,7 @@ environment_variables:
   # Database connections
   DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/erp_auth?sslmode=disable"
   MONGODB_URL: "mongodb://root:password@localhost:27017/erp_analytics?authSource=admin"
-  REDIS_URL: "redis://:redispassword@localhost:6379/0"
+  REDIS_URL: "redis://:redispassword@localhost:6378/0"
   QDRANT_URL: "http://localhost:6333"
   
   # Message brokers
@@ -203,7 +203,7 @@ kubernetes:
   services:
     postgres: "postgres.erp-system.svc.cluster.local:5432"
     mongodb: "mongodb.erp-system.svc.cluster.local:27017"
-    redis: "redis.erp-system.svc.cluster.local:6379"
+    redis: "redis.erp-system.svc.cluster.local:6378"
     qdrant: "qdrant.erp-system.svc.cluster.local:6333"
     kafka: "kafka.erp-system.svc.cluster.local:9092"
     elasticsearch: "elasticsearch.erp-system.svc.cluster.local:9200"

@@ -50,7 +50,7 @@ This creates `.env.auth.development` with:
 ```env
 # Database
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/erp_auth?sslmode=disable
-REDIS_URL=redis://:redispassword@localhost:6379/0
+REDIS_URL=redis://:redispassword@localhost:6378/0
 
 # Service ports
 HTTP_PORT=8080
@@ -332,7 +332,7 @@ metadata:
 data:
   # Generated from .env.auth.production
   DATABASE_URL: "postgresql://user:pass@postgres:5432/erp_auth"
-  REDIS_URL: "redis://:pass@redis:6379/0"
+  REDIS_URL: "redis://:pass@redis:6378/0"
   HTTP_PORT: "8080"
   GRPC_PORT: "9090"
 ---

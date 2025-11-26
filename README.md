@@ -398,7 +398,7 @@ make logs APP=api-gateway
 |---------|------|----------------|-------------|
 | PostgreSQL | 5432 | localhost:5432 | postgres/postgres |
 | MongoDB | 27017 | localhost:27017 | root/password |
-| Redis | 6379 | localhost:6379 | password: redispassword |
+| Redis | 6378 | localhost:6378 | password: redispassword |
 | Qdrant (HTTP) | 6333 | http://localhost:6333 | - |
 | Qdrant (gRPC) | 6334 | grpc://localhost:6334 | - |
 | Kafka | 9092 | localhost:9092 | - |
@@ -581,7 +581,7 @@ graph TB
     subgraph "Core Infrastructure"
         PG[(PostgreSQL<br/>Port 5432)]
         MONGO[(MongoDB<br/>Port 27017)]
-        REDIS[(Redis<br/>Port 6379)]
+        REDIS[(Redis<br/>Port 6378)]
         KAFKA[Kafka<br/>Port 9092]
         ES[(Elasticsearch<br/>Port 9200)]
         QDRANT[(Qdrant<br/>Port 6333)]
@@ -1148,7 +1148,7 @@ psql -h localhost -p 5432 -U postgres -d erp_system
 mongosh mongodb://root:password@localhost:27017/erp_analytics
 
 # Redis
-redis-cli -h localhost -p 6379 -a redispassword
+redis-cli -h localhost -p 6378 -a redispassword
 ```
 
 #### API Testing
@@ -1179,7 +1179,7 @@ NETWORK_SUBNET=172.20.0.0/16       # Docker network subnet
 
 # Service Ports
 POSTGRES_PORT=5432
-REDIS_PORT=6379
+REDIS_PORT=6378
 MONGODB_PORT=27017
 KAFKA_PORT=9092
 ELASTICSEARCH_PORT=9200
@@ -1379,18 +1379,18 @@ The ERP Suite uses a sophisticated service mesh architecture where all services 
 | **Frontend** | API Gateway | `http://api-gateway:8000` | ✅ Service Name |
 | **Frontend** | GraphQL Gateway | `http://graphql-gateway:4000` | ✅ Service Name |
 | **API Gateway** | PostgreSQL | `postgres:5432` | ✅ Service Name |
-| **API Gateway** | Redis | `redis:6379` | ✅ Service Name |
+| **API Gateway** | Redis | `redis:6378` | ✅ Service Name |
 | **API Gateway** | Elasticsearch | `elasticsearch:9200` | ✅ Service Name |
 | **API Gateway** | MongoDB | `mongodb:27017` | ✅ Service Name |
 | **API Gateway** | Auth Service | `http://auth-service:8080` | ✅ Service Name |
 | **API Gateway** | WebSocket | `http://websocket-server:3001` | ✅ Service Name |
 | **GraphQL Gateway** | PostgreSQL | `postgres:5432` | ✅ Service Name |
-| **GraphQL Gateway** | Redis | `redis:6379` | ✅ Service Name |
+| **GraphQL Gateway** | Redis | `redis:6378` | ✅ Service Name |
 | **GraphQL Gateway** | Auth Service | `auth-service:50051` (gRPC) | ✅ Service Name |
 | **Auth Service** | PostgreSQL | `postgres:5432` | ✅ Service Name |
-| **Auth Service** | Redis | `redis:6379` | ✅ Service Name |
+| **Auth Service** | Redis | `redis:6378` | ✅ Service Name |
 | **Auth Service** | Kafka | `kafka:29092` | ✅ Service Name |
-| **WebSocket** | Redis | `redis:6379` | ✅ Service Name |
+| **WebSocket** | Redis | `redis:6378` | ✅ Service Name |
 | **WebSocket** | GraphQL Gateway | `http://graphql-gateway:4000` | ✅ Service Name |
 | **Kibana** | Elasticsearch | `http://elasticsearch:9200` | ✅ Service Name |
 | **Admin Tools** | Databases | Service names | ✅ Service Name |
@@ -1428,7 +1428,7 @@ docker exec erp-suite-api-gateway curl -f http://auth-service:8080/health
 docker exec erp-suite-graphql-gateway nc -z postgres 5432
 
 # Test from Auth Service to Redis
-docker exec erp-suite-auth-service redis-cli -h redis -p 6379 ping
+docker exec erp-suite-auth-service redis-cli -h redis -p 6378 ping
 
 # Test from API Gateway to Elasticsearch
 docker exec erp-suite-api-gateway curl -f http://elasticsearch:9200/_cluster/health

@@ -206,7 +206,7 @@ infrastructure:
     redis:
       description: "In-memory cache and session store"
       version: "7.2"
-      port: 6379
+      port: 6378
       used_by:
         - auth
         - crm

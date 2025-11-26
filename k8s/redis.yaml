@@ -44,7 +44,7 @@ spec:
         - redis-server
         - /etc/redis/redis.conf
         ports:
-        - containerPort: 6379
+        - containerPort: 6378
         volumeMounts:
         - name: redis-config
           mountPath: /etc/redis
@@ -95,6 +95,6 @@ spec:
   selector:
     app: redis
   ports:
-  - port: 6379
-    targetPort: 6379
+  - port: 6378
+    targetPort: 6378
   type: ClusterIP

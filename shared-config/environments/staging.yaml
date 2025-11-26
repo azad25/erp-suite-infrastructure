@@ -45,7 +45,7 @@ databases:
     
   redis:
     host: ${REDIS_HOST:redis-staging.internal}
-    port: ${REDIS_PORT:6379}
+    port: ${REDIS_PORT:6378}
     password: ${REDIS_PASSWORD}
     max_connections: 150
     ssl: true

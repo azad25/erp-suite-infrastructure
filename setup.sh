@@ -111,7 +111,7 @@ main() {
     print_status "Waiting for core services to be ready..."
     wait_for_service "PostgreSQL" 5432
     wait_for_service "MongoDB" 27017
-    wait_for_service "Redis" 6379
+    wait_for_service "Redis" 6378
     wait_for_service "Kafka" 9092
     echo ""
     
@@ -151,7 +151,7 @@ main() {
     echo "📋 Infrastructure Services:"
     echo "  PostgreSQL:          localhost:5432 (postgres/postgres)"
     echo "  MongoDB:             localhost:27017 (root/password)"
-    echo "  Redis:               localhost:6379 (password: redispassword)"
+    echo "  Redis:               localhost:6378 (password: redispassword)"
     echo "  Qdrant:              http://localhost:6333"
     echo "  Kafka:               localhost:9092"
     echo "  Elasticsearch:       http://localhost:9200 (elastic/password)"

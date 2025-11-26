@@ -1,0 +1,20 @@
+# Environment variables
+.env
+.env.frontend
+.env.macos
+# Keep example
+!.env.example
+
+# Data and logs
+data/
+logs/
+backups/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
